@@ -223,7 +223,7 @@ public class OrderDAO {
     // Get orders by table ID
     public List<Order> getOrdersByTableId(int tableId) {
         List<Order> orders = new ArrayList<>();
-        String query = "SELECT * FROM orders WHERE table_id = ? ORDER BY created_at DESC";
+        String query = "SELECT * FROM orders WHERE table_number = ? ORDER BY created_at DESC";
         
         try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
             pstmt.setInt(1, tableId);
@@ -440,11 +440,11 @@ public class OrderDAO {
     private Order createOrderFromResultSet(ResultSet rs) throws SQLException {
         int orderId = rs.getInt("order_id");
         int customerId = rs.getInt("customer_id");
-        int tableId = rs.getInt("table_id");
+        int tableId = rs.getInt("table_number");
         String serviceTypeStr = rs.getString("service_type");
         String statusStr = rs.getString("status");
         double totalAmount = rs.getDouble("total_amount");
-        String notes = rs.getString("notes");
+        String notes = rs.getString("special_instructions");
         
         Order.ServiceType serviceType = Order.ServiceType.valueOf(serviceTypeStr);
         Order.OrderStatus status = Order.OrderStatus.valueOf(statusStr);
@@ -495,16 +495,17 @@ public class OrderDAO {
         
         @Override
         public String toString() {
-            return String.format("Order Statistics:\n" +
-                               "Total Orders: %d\n" +
-                               "Total Revenue: $%.2f\n" +
-                               "Average Order Value: $%.2f\n" +
-                               "Completed Orders: %d\n" +
-                               "Pending Orders: %d\n" +
-                               "Preparing Orders: %d\n" +
-                               "Ready Orders: %d\n" +
-                               "Cancelled Orders: %d",
-                               totalOrders, totalRevenue, avgOrderValue,
+            java.text.NumberFormat vndFmt = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
+            return String.format("Thống kê đơn hàng:\n" +
+                               "Tổng số đơn: %d\n" +
+                               "Doanh thu: %s\n" +
+                               "Giá trị đơn trung bình: %s\n" +
+                               "Hoàn thành: %d\n" +
+                               "Chờ xử lý: %d\n" +
+                               "Đang pha chế: %d\n" +
+                               "Sẵn sàng: %d\n" +
+                               "Đã hủy: %d",
+                               totalOrders, vndFmt.format(totalRevenue), vndFmt.format(avgOrderValue),
                                completedOrders, pendingOrders, preparingOrders,
                                readyOrders, cancelledOrders);
         }

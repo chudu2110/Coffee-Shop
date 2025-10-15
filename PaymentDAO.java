@@ -16,8 +16,7 @@ public class PaymentDAO {
     
     // Create a new payment
     public int createPayment(Payment payment) {
-        String query = "INSERT INTO payments (order_id, payment_method, amount, status, " +
-                      "transaction_reference, notes) VALUES (?, ?, ?, ?, ?, ?)";
+        String query = "INSERT INTO payments (order_id, payment_method, amount, status, transaction_reference) VALUES (?, ?, ?, ?, ?)";
         
         try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
             pstmt.setInt(1, payment.getOrderId());
@@ -25,7 +24,6 @@ public class PaymentDAO {
             pstmt.setDouble(3, payment.getAmount());
             pstmt.setString(4, payment.getStatus().toString());
             pstmt.setString(5, payment.getTransactionReference());
-            pstmt.setString(6, payment.getFailureReason());
             
             int rowsAffected = pstmt.executeUpdate();
             
@@ -224,12 +222,10 @@ public class PaymentDAO {
     
     // Refund payment
     public boolean refundPayment(int paymentId, String refundReason) {
-        String query = "UPDATE payments SET status = 'REFUNDED', notes = ?, " +
-                      "updated_at = CURRENT_TIMESTAMP WHERE payment_id = ? AND status = 'COMPLETED'";
+        String query = "UPDATE payments SET status = 'REFUNDED', updated_at = CURRENT_TIMESTAMP WHERE payment_id = ? AND status = 'COMPLETED'";
         
         try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, refundReason);
-            pstmt.setInt(2, paymentId);
+            pstmt.setInt(1, paymentId);
             
             int rowsAffected = pstmt.executeUpdate();
             return rowsAffected > 0;
@@ -242,12 +238,10 @@ public class PaymentDAO {
     
     // Cancel payment
     public boolean cancelPayment(int paymentId, String cancelReason) {
-        String query = "UPDATE payments SET status = 'CANCELLED', notes = ?, " +
-                      "updated_at = CURRENT_TIMESTAMP WHERE payment_id = ? AND status = 'PENDING'";
+        String query = "UPDATE payments SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP WHERE payment_id = ? AND status = 'PENDING'";
         
         try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, cancelReason);
-            pstmt.setInt(2, paymentId);
+            pstmt.setInt(1, paymentId);
             
             int rowsAffected = pstmt.executeUpdate();
             return rowsAffected > 0;

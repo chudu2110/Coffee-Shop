@@ -86,7 +86,8 @@ public abstract class MenuItem {
     
     @Override
     public String toString() {
-        return String.format("%s - $%.2f\n%s", name, price, description);
+        long vnd = Math.round(price);
+        return String.format("%s - %dđ\n%s", name, vnd, description);
     }
     
     @Override

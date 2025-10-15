@@ -77,6 +77,9 @@ public class DatabaseConnection {
             // Always ensure tables/indexes exist
             createTables();
 
+            // Migrate schema/data if needed (e.g., switch to VND pricing)
+            migrateToVNDIfNeeded();
+
             // Seed sample data on first run OR when critical tables are empty
             if (isNewDatabase || isTableEmpty("menu_items")) {
                 insertSampleData();
@@ -114,7 +117,7 @@ public class DatabaseConnection {
             "id INTEGER PRIMARY KEY AUTOINCREMENT," +
             "name VARCHAR(100) NOT NULL," +
             "description TEXT," +
-            "base_price DECIMAL(10,2) NOT NULL," +
+            "base_price DECIMAL(10,3) NOT NULL," +
             "category VARCHAR(50) NOT NULL," +
             "item_type VARCHAR(50) NOT NULL," +
             "coffee_type VARCHAR(50)," +
@@ -156,10 +159,10 @@ public class DatabaseConnection {
             "status VARCHAR(20) DEFAULT 'PENDING'," +
             "service_type VARCHAR(20) NOT NULL," +
             "table_number INTEGER," +
-            "subtotal DECIMAL(10,2) NOT NULL," +
-            "tax DECIMAL(10,2) NOT NULL," +
-            "discount DECIMAL(10,2) DEFAULT 0.00," +
-            "total_amount DECIMAL(10,2) NOT NULL," +
+            "subtotal DECIMAL(10,3) NOT NULL," +
+            "tax DECIMAL(10,3) NOT NULL," +
+            "discount DECIMAL(10,3) DEFAULT 0.00," +
+            "total_amount DECIMAL(10,3) NOT NULL," +
             "special_instructions TEXT," +
             "order_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
             "completion_time TIMESTAMP," +
@@ -175,8 +178,8 @@ public class DatabaseConnection {
             "order_id INTEGER NOT NULL," +
             "menu_item_id INTEGER NOT NULL," +
             "quantity INTEGER NOT NULL," +
-            "unit_price DECIMAL(10,2) NOT NULL," +
-            "total_price DECIMAL(10,2) NOT NULL," +
+            "unit_price DECIMAL(10,3) NOT NULL," +
+            "total_price DECIMAL(10,3) NOT NULL," +
             "customizations TEXT," +
             "size VARCHAR(20)," +
             "is_hot BOOLEAN," +
@@ -191,9 +194,9 @@ public class DatabaseConnection {
             "order_id INTEGER NOT NULL," +
             "payment_method VARCHAR(20) NOT NULL," +
             "status VARCHAR(20) DEFAULT 'PENDING'," +
-            "amount DECIMAL(10,2) NOT NULL," +
-            "amount_paid DECIMAL(10,2) DEFAULT 0.00," +
-            "change_given DECIMAL(10,2) DEFAULT 0.00," +
+            "amount DECIMAL(10,3) NOT NULL," +
+            "amount_paid DECIMAL(10,3) DEFAULT 0.00," +
+            "change_given DECIMAL(10,3) DEFAULT 0.00," +
             "transaction_reference VARCHAR(100)," +
             "card_last_four_digits VARCHAR(4)," +
             "failure_reason TEXT," +
@@ -212,7 +215,7 @@ public class DatabaseConnection {
             "current_stock DECIMAL(10,3) DEFAULT 0.000," +
             "minimum_stock DECIMAL(10,3) NOT NULL," +
             "maximum_stock DECIMAL(10,3) NOT NULL," +
-            "cost_per_unit DECIMAL(10,2) NOT NULL," +
+            "cost_per_unit DECIMAL(10,3) NOT NULL," +
             "expiration_date DATE," +
             "supplier VARCHAR(100)," +
             "is_active BOOLEAN DEFAULT TRUE," +
@@ -248,43 +251,43 @@ public class DatabaseConnection {
     private void insertSampleData() throws SQLException {
         // Sample menu items (Vietnamese categories and items)
         String insertCoffee = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Cà phê đen nóng', 'Đậm đà, truyền thống', 2.00, 'Cà phê', 'Drink', NULL), " +
-            "('Cà phê đen đá', 'Đậm đà, dùng với đá', 2.00, 'Cà phê', 'Drink', NULL), " +
-            "('Cà phê sữa nóng', 'Sữa đặc và cà phê rang xay', 2.50, 'Cà phê', 'Drink', NULL), " +
-            "('Cà phê sữa đá', 'Bạc xỉu kiểu Việt', 2.50, 'Cà phê', 'Drink', NULL), " +
-            "('Bạc xỉu', 'Sữa nhiều, cà phê ít', 2.80, 'Cà phê', 'Drink', NULL), " +
-            "('Espresso', 'Rich and bold espresso shot', 2.50, 'Cà phê', 'Coffee', 'ESPRESSO'), " +
-            "('Cappuccino', 'Espresso với sữa nóng và foam', 3.80, 'Cà phê', 'Coffee', 'CAPPUCCINO'), " +
-            "('Latte', 'Espresso với sữa nóng', 4.00, 'Cà phê', 'Coffee', 'LATTE'), " +
-            "('Mocha', 'Espresso, chocolate, sữa', 4.20, 'Cà phê', 'Coffee', 'MOCHA'), " +
-            "('Americano', 'Espresso pha nước nóng', 3.00, 'Cà phê', 'Coffee', 'AMERICANO'), " +
-            "('Cold Brew', 'Ủ lạnh 12-24h', 3.50, 'Cà phê', 'Drink', NULL)";
+            "('Cà phê đen nóng', 'Đậm đà, truyền thống', 20000, 'Cà phê', 'Drink', NULL), " +
+            "('Cà phê đen đá', 'Đậm đà, dùng với đá', 20000, 'Cà phê', 'Drink', NULL), " +
+            "('Cà phê sữa nóng', 'Sữa đặc và cà phê rang xay', 25000, 'Cà phê', 'Drink', NULL), " +
+            "('Cà phê sữa đá', 'Bạc xỉu kiểu Việt', 25000, 'Cà phê', 'Drink', NULL), " +
+            "('Bạc xỉu', 'Sữa nhiều, cà phê ít', 28000, 'Cà phê', 'Drink', NULL), " +
+            "('Espresso', 'Rich and bold espresso shot', 25000, 'Cà phê', 'Coffee', 'ESPRESSO'), " +
+            "('Cappuccino', 'Espresso với sữa nóng và foam', 38000, 'Cà phê', 'Coffee', 'CAPPUCCINO'), " +
+            "('Latte', 'Espresso với sữa nóng', 40000, 'Cà phê', 'Coffee', 'LATTE'), " +
+            "('Mocha', 'Espresso, chocolate, sữa', 42000, 'Cà phê', 'Coffee', 'MOCHA'), " +
+            "('Americano', 'Espresso pha nước nóng', 30000, 'Cà phê', 'Coffee', 'AMERICANO'), " +
+            "('Cold Brew', 'Ủ lạnh 12-24h', 35000, 'Cà phê', 'Drink', NULL)";
 
         String insertTea = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Trà đào cam sả', 'Trà đào, cam, sả tươi', 2.80, 'Trà', 'Drink', NULL), " +
-            "('Trà chanh', 'Trà đen với chanh tươi', 2.00, 'Trà', 'Drink', NULL), " +
-            "('Trà đào', 'Trà đen vị đào', 2.50, 'Trà', 'Drink', NULL), " +
-            "('Trà vải', 'Trà đen vị vải', 2.50, 'Trà', 'Drink', NULL), " +
-            "('Trà sữa trân châu', 'Trà sữa kèm trân châu', 3.20, 'Trà', 'Drink', NULL), " +
-            "('Matcha latte', 'Bột trà xanh và sữa', 3.50, 'Trà', 'Drink', NULL), " +
-            "('Trà gạo rang (Hojicha)', 'Hương gạo rang đặc trưng', 3.20, 'Trà', 'Drink', NULL)";
+            "('Trà đào cam sả', 'Trà đào, cam, sả tươi', 28000, 'Trà', 'Drink', NULL), " +
+            "('Trà chanh', 'Trà đen với chanh tươi', 20000, 'Trà', 'Drink', NULL), " +
+            "('Trà đào', 'Trà đen vị đào', 25000, 'Trà', 'Drink', NULL), " +
+            "('Trà vải', 'Trà đen vị vải', 25000, 'Trà', 'Drink', NULL), " +
+            "('Trà sữa trân châu', 'Trà sữa kèm trân châu', 32000, 'Trà', 'Drink', NULL), " +
+            "('Matcha latte', 'Bột trà xanh và sữa', 35000, 'Trà', 'Drink', NULL), " +
+            "('Trà gạo rang (Hojicha)', 'Hương gạo rang đặc trưng', 32000, 'Trà', 'Drink', NULL)";
 
         String insertSmoothieJuice = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Sinh tố xoài', 'Xoài chín xay mịn', 3.00, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Sinh tố bơ', 'Bơ sáp béo mịn', 3.50, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Sinh tố dâu', 'Dâu tươi xay', 3.20, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép cam', 'Cam vắt nguyên chất', 2.80, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép dưa hấu', 'Lạnh mát, ít đường', 2.50, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép táo', 'Táo ép tươi', 2.80, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép cà rốt', 'Cà rốt ép tươi', 2.50, 'Sinh tố & Nước ép', 'Drink', NULL)";
+            "('Sinh tố xoài', 'Xoài chín xay mịn', 30000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
+            "('Sinh tố bơ', 'Bơ sáp béo mịn', 35000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
+            "('Sinh tố dâu', 'Dâu tươi xay', 32000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
+            "('Nước ép cam', 'Cam vắt nguyên chất', 28000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
+            "('Nước ép dưa hấu', 'Lạnh mát, ít đường', 25000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
+            "('Nước ép táo', 'Táo ép tươi', 28000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
+            "('Nước ép cà rốt', 'Cà rốt ép tươi', 25000, 'Sinh tố & Nước ép', 'Drink', NULL)";
 
         String insertOthers = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Soda chanh', 'Sảng khoái, vị chanh', 2.20, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Soda việt quất', 'Vị việt quất nhẹ', 2.50, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Chocolate nóng', 'Sô cô la nóng', 3.20, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Chocolate đá', 'Sô cô la mát lạnh', 3.20, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Yaourt đá', 'Sữa chua dầm đá', 2.50, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Nước suối', 'Đóng chai', 1.00, 'Đồ uống khác', 'Drink', NULL)";
+            "('Soda chanh', 'Sảng khoái, vị chanh', 22000, 'Đồ uống khác', 'Drink', NULL), " +
+            "('Soda việt quất', 'Vị việt quất nhẹ', 25000, 'Đồ uống khác', 'Drink', NULL), " +
+            "('Chocolate nóng', 'Sô cô la nóng', 32000, 'Đồ uống khác', 'Drink', NULL), " +
+            "('Chocolate đá', 'Sô cô la mát lạnh', 32000, 'Đồ uống khác', 'Drink', NULL), " +
+            "('Yaourt đá', 'Sữa chua dầm đá', 25000, 'Đồ uống khác', 'Drink', NULL), " +
+            "('Nước suối', 'Đóng chai', 10000, 'Đồ uống khác', 'Drink', NULL)";
 
         // Sample customers
         String insertCustomers = "INSERT INTO customers (name, email, phone_number, loyalty_points) VALUES " +
@@ -304,6 +307,33 @@ public class DatabaseConnection {
         stmt.execute(insertCustomers);
         stmt.execute(insertTables);
         stmt.close();
+    }
+
+    // Migrate existing data to VND scale if appears to be USD-like values
+    private void migrateToVNDIfNeeded() {
+        try (Statement stmt = connection.createStatement()) {
+            // Heuristic: if average base_price < 100 (likely USD scale), multiply by 10000 to get VND-like values
+            ResultSet rs = stmt.executeQuery("SELECT AVG(base_price) AS avgp FROM menu_items");
+            double avg = rs.next() ? rs.getDouble("avgp") : 0.0;
+            rs.close();
+            if (avg > 0 && avg < 100) {
+                connection.setAutoCommit(false);
+                // Update menu_items prices
+                stmt.executeUpdate("UPDATE menu_items SET base_price = ROUND(base_price * 10000, 3)");
+                // Update existing orders and order_items monetary columns accordingly
+                stmt.executeUpdate("UPDATE order_items SET unit_price = ROUND(unit_price * 10000, 3), total_price = ROUND(total_price * 10000, 3)");
+                stmt.executeUpdate("UPDATE orders SET subtotal = ROUND(subtotal * 10000, 3), tax = ROUND(tax * 10000, 3), discount = ROUND(discount * 10000, 3), total_amount = ROUND(total_amount * 10000, 3)");
+                stmt.executeUpdate("UPDATE payments SET amount = ROUND(amount * 10000, 3), amount_paid = ROUND(amount_paid * 10000, 3), change_given = ROUND(change_given * 10000, 3)");
+                connection.commit();
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                connection.setAutoCommit(true);
+            } catch (SQLException ignore) {}
+            System.err.println("Migration to VND failed: " + e.getMessage());
+        }
     }
     
     // Test database connection

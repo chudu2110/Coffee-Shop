@@ -168,8 +168,8 @@ public class Order {
                 .mapToDouble(item -> item.getMenuItem().calculatePrice() * item.getQuantity())
                 .sum();
         
-        // Calculate tax (8% tax rate)
-        tax = subtotal * 0.08;
+        // Calculate tax (10% VAT)
+        tax = subtotal * 0.10;
         
         // Calculate total
         totalAmount = subtotal + tax - discount;
@@ -203,18 +203,23 @@ public class Order {
         
         sb.append("\nItems:\n");
         for (OrderItem item : orderItems) {
-            sb.append(String.format("- %s x%d = $%.2f\n", 
+            double line = item.getMenuItem().calculatePrice() * item.getQuantity();
+            long vnd = Math.round(line);
+            sb.append(String.format("- %s x%d = %dđ\n", 
                     item.getMenuItem().getName(), 
                     item.getQuantity(), 
-                    item.getMenuItem().calculatePrice() * item.getQuantity()));
+                    vnd));
         }
-        
-        sb.append(String.format("\nSubtotal: $%.2f\n", subtotal));
-        sb.append(String.format("Tax: $%.2f\n", tax));
+        long subtotalVnd = Math.round(subtotal);
+        long taxVnd = Math.round(tax);
+        long discountVnd = Math.round(discount);
+        long totalVnd = Math.round(totalAmount);
+        sb.append(String.format("\nTạm tính: %dđ\n", subtotalVnd));
+        sb.append(String.format("Thuế (VAT 10%): %dđ\n", taxVnd));
         if (discount > 0) {
-            sb.append(String.format("Discount: -$%.2f\n", discount));
+            sb.append(String.format("Giảm giá: -%dđ\n", discountVnd));
         }
-        sb.append(String.format("Total: $%.2f\n", totalAmount));
+        sb.append(String.format("Tổng cộng: %dđ\n", totalVnd));
         
         if (!specialInstructions.isEmpty()) {
             sb.append(String.format("Special Instructions: %s\n", specialInstructions));

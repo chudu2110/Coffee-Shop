@@ -63,8 +63,9 @@ public class OrderItem {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%s x%d = $%.2f", 
-                menuItem.getName(), quantity, getItemTotal()));
+        long vnd = Math.round(getItemTotal());
+        sb.append(String.format("%s x%3d = %dđ", 
+                menuItem.getName(), quantity, vnd));
         
         if (!customizations.isEmpty()) {
             sb.append(String.format(" (Customizations: %s)", customizations));

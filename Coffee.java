@@ -98,8 +98,8 @@ public class Coffee extends MenuItem {
     public double calculatePrice() {
         double finalPrice = getPrice() * size.getMultiplier();
         
-        // Add extra cost for customizations (e.g., $0.50 per customization)
-        finalPrice += customizations.size() * 0.50;
+        // Add extra cost for customizations (e.g., 5,000 VND per customization)
+        finalPrice += customizations.size() * 5000.0;
         
         return finalPrice;
     }
@@ -116,7 +116,8 @@ public class Coffee extends MenuItem {
             sb.append(String.join(", ", customizations));
         }
         
-        sb.append(String.format("\nFinal Price: $%.2f", calculatePrice()));
+        java.text.NumberFormat vndFmt = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
+        sb.append(String.format("\nFinal Price: %s", vndFmt.format(calculatePrice())));
         
         return sb.toString();
     }
