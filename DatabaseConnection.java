@@ -1,401 +1,407 @@
-import java.sql.*;
-import java.io.File;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 /**
- * DatabaseConnection class for managing SQLite database connections
- * Implements singleton pattern for connection management
+ * DatabaseConnection
+ * ------------------
+ * Quản lý kết nối tới cơ sở dữ liệu MySQL cho ứng dụng Coffee Shop.
+ * Tự động tạo bảng và chèn dữ liệu mẫu nếu chưa tồn tại.
  */
 public class DatabaseConnection {
+    private static final String URL = "jdbc:mysql://localhost:3306/coffee_shop?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    private static final String USER = "root";
+    private static final String PASSWORD = "123456";
+
+    private static Connection connection;
     private static DatabaseConnection instance;
-    private Connection connection;
-    private static final String DATABASE_NAME = "coffee_shop.db";
-    private static final String DATABASE_URL = "jdbc:sqlite:" + DATABASE_NAME;
-    
-    // Private constructor for singleton pattern
-    private DatabaseConnection() {
+
+    // ==========================
+    // Kết nối tới database
+    // ==========================
+    public static Connection getConnection() {
         try {
-            // Load SQLite JDBC driver
-            Class.forName("org.sqlite.JDBC");
-            this.connection = DriverManager.getConnection(DATABASE_URL);
-            
-            // Enable foreign key constraints
-            Statement stmt = connection.createStatement();
-            stmt.execute("PRAGMA foreign_keys = ON;");
-            stmt.close();
-            
-            System.out.println("Database connection established successfully.");
-            
-        } catch (ClassNotFoundException e) {
-            System.err.println("SQLite JDBC driver not found: " + e.getMessage());
-            System.err.println("Please add sqlite-jdbc jar to your classpath.");
+            if (connection == null || connection.isClosed()) {
+                connection = DriverManager.getConnection(URL, USER, PASSWORD);
+                System.out.println("Success");
+            }
         } catch (SQLException e) {
-            System.err.println("Failed to connect to database: " + e.getMessage());
+            System.err.println("Wrong connect: " + e.getMessage());
         }
+        return connection;
     }
-    
-    // Get singleton instance
-    public static synchronized DatabaseConnection getInstance() {
+
+    public static DatabaseConnection getInstance() {
         if (instance == null) {
             instance = new DatabaseConnection();
         }
         return instance;
     }
-    
-    // Get database connection
-    public Connection getConnection() {
+
+    // ==========================
+    // Kiểm tra kết nối
+    // ==========================
+    public static boolean testConnection() {
         try {
-            // Check if connection is still valid
-            if (connection == null || connection.isClosed()) {
-                connection = DriverManager.getConnection(DATABASE_URL);
-                
-                // Enable foreign key constraints
-                Statement stmt = connection.createStatement();
-                stmt.execute("PRAGMA foreign_keys = ON;");
-                stmt.close();
-            }
-        } catch (SQLException e) {
-            System.err.println("Failed to get database connection: " + e.getMessage());
-        }
-        return connection;
-    }
-    
-    // Initialize database with schema
-    public boolean initializeDatabase() {
-        try {
-            // Ensure connection is valid
-            if (connection == null || connection.isClosed()) {
-                connection = DriverManager.getConnection(DATABASE_URL);
-                Statement stmt = connection.createStatement();
-                stmt.execute("PRAGMA foreign_keys = ON;");
-                stmt.close();
-            }
-
-            // Ensure DB file exists (will be created on first connection use)
-            File dbFile = new File(DATABASE_NAME);
-            boolean isNewDatabase = !dbFile.exists();
-
-            // Always ensure tables/indexes exist
-            createTables();
-
-            // Migrate schema/data if needed (e.g., switch to VND pricing)
-            migrateToVNDIfNeeded();
-
-            // Seed sample data on first run OR when critical tables are empty
-            if (isNewDatabase || isTableEmpty("menu_items")) {
-                insertSampleData();
-                System.out.println("Database seeded with sample data.");
-            } else {
-                System.out.println("Database exists with data.");
-            }
-
-            return true;
-
-        } catch (SQLException e) {
-            System.err.println("Failed to initialize database: " + e.getMessage());
-            return false;
-        }
-    }
-
-    // Check if a table has no rows
-    private boolean isTableEmpty(String tableName) {
-        String sql = "SELECT COUNT(1) AS c FROM " + tableName;
-        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
-            if (rs.next()) {
-                return rs.getInt("c") == 0;
-            }
-        } catch (SQLException e) {
-            System.err.println("Failed to check table '" + tableName + "': " + e.getMessage());
-        }
-        return false;
-    }
-    
-    // Create database tables
-    private void createTables() throws SQLException {
-        String[] createTableQueries = {
-            // Menu items table
-            "CREATE TABLE IF NOT EXISTS menu_items (" +
-            "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            "name VARCHAR(100) NOT NULL," +
-            "description TEXT," +
-            "base_price DECIMAL(10,3) NOT NULL," +
-            "category VARCHAR(50) NOT NULL," +
-            "item_type VARCHAR(50) NOT NULL," +
-            "coffee_type VARCHAR(50)," +
-            "is_available BOOLEAN DEFAULT TRUE," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
-            ")",
-            
-            // Customers table
-            "CREATE TABLE IF NOT EXISTS customers (" +
-            "customer_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            "name VARCHAR(100) NOT NULL," +
-            "email VARCHAR(150) UNIQUE," +
-            "phone_number VARCHAR(20)," +
-            "loyalty_points DECIMAL(10,2) DEFAULT 0.00," +
-            "registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
-            ")",
-            
-            // Tables table
-            "CREATE TABLE IF NOT EXISTS tables (" +
-            "table_number INTEGER PRIMARY KEY," +
-            "capacity INTEGER NOT NULL," +
-            "status VARCHAR(20) DEFAULT 'AVAILABLE'," +
-            "current_customer_id INTEGER," +
-            "occupied_since TIMESTAMP," +
-            "reserved_until TIMESTAMP," +
-            "notes TEXT," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "FOREIGN KEY (current_customer_id) REFERENCES customers(customer_id)" +
-            ")",
-            
-            // Orders table
-            "CREATE TABLE IF NOT EXISTS orders (" +
-            "order_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            "customer_id INTEGER NOT NULL," +
-            "status VARCHAR(20) DEFAULT 'PENDING'," +
-            "service_type VARCHAR(20) NOT NULL," +
-            "table_number INTEGER," +
-            "subtotal DECIMAL(10,3) NOT NULL," +
-            "tax DECIMAL(10,3) NOT NULL," +
-            "discount DECIMAL(10,3) DEFAULT 0.00," +
-            "total_amount DECIMAL(10,3) NOT NULL," +
-            "special_instructions TEXT," +
-            "order_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "completion_time TIMESTAMP," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "FOREIGN KEY (customer_id) REFERENCES customers(customer_id)," +
-            "FOREIGN KEY (table_number) REFERENCES tables(table_number)" +
-            ")",
-            
-            // Order items table
-            "CREATE TABLE IF NOT EXISTS order_items (" +
-            "order_item_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            "order_id INTEGER NOT NULL," +
-            "menu_item_id INTEGER NOT NULL," +
-            "quantity INTEGER NOT NULL," +
-            "unit_price DECIMAL(10,3) NOT NULL," +
-            "total_price DECIMAL(10,3) NOT NULL," +
-            "customizations TEXT," +
-            "size VARCHAR(20)," +
-            "is_hot BOOLEAN," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE," +
-            "FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)" +
-            ")",
-            
-            // Payments table
-            "CREATE TABLE IF NOT EXISTS payments (" +
-            "payment_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            "order_id INTEGER NOT NULL," +
-            "payment_method VARCHAR(20) NOT NULL," +
-            "status VARCHAR(20) DEFAULT 'PENDING'," +
-            "amount DECIMAL(10,3) NOT NULL," +
-            "amount_paid DECIMAL(10,3) DEFAULT 0.00," +
-            "change_given DECIMAL(10,3) DEFAULT 0.00," +
-            "transaction_reference VARCHAR(100)," +
-            "card_last_four_digits VARCHAR(4)," +
-            "failure_reason TEXT," +
-            "payment_time TIMESTAMP," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "FOREIGN KEY (order_id) REFERENCES orders(order_id)" +
-            ")",
-            
-            // Ingredients table
-            "CREATE TABLE IF NOT EXISTS ingredients (" +
-            "ingredient_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            "name VARCHAR(100) NOT NULL," +
-            "description TEXT," +
-            "unit VARCHAR(20) NOT NULL," +
-            "current_stock DECIMAL(10,3) DEFAULT 0.000," +
-            "minimum_stock DECIMAL(10,3) NOT NULL," +
-            "maximum_stock DECIMAL(10,3) NOT NULL," +
-            "cost_per_unit DECIMAL(10,3) NOT NULL," +
-            "expiration_date DATE," +
-            "supplier VARCHAR(100)," +
-            "is_active BOOLEAN DEFAULT TRUE," +
-            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
-            ")"
-        };
-        
-        Statement stmt = connection.createStatement();
-        
-        for (String query : createTableQueries) {
-            stmt.execute(query);
-        }
-        
-        // Create indexes
-        String[] indexQueries = {
-            "CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)",
-            "CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)",
-            "CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)",
-            "CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id)",
-            "CREATE INDEX IF NOT EXISTS idx_tables_status ON tables(status)",
-            "CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category)"
-        };
-        
-        for (String query : indexQueries) {
-            stmt.execute(query);
-        }
-        
-        stmt.close();
-    }
-    
-    // Insert sample data
-    private void insertSampleData() throws SQLException {
-        // Sample menu items (Vietnamese categories and items)
-        String insertCoffee = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Cà phê đen nóng', 'Đậm đà, truyền thống', 20000, 'Cà phê', 'Drink', NULL), " +
-            "('Cà phê đen đá', 'Đậm đà, dùng với đá', 20000, 'Cà phê', 'Drink', NULL), " +
-            "('Cà phê sữa nóng', 'Sữa đặc và cà phê rang xay', 25000, 'Cà phê', 'Drink', NULL), " +
-            "('Cà phê sữa đá', 'Bạc xỉu kiểu Việt', 25000, 'Cà phê', 'Drink', NULL), " +
-            "('Bạc xỉu', 'Sữa nhiều, cà phê ít', 28000, 'Cà phê', 'Drink', NULL), " +
-            "('Espresso', 'Rich and bold espresso shot', 25000, 'Cà phê', 'Coffee', 'ESPRESSO'), " +
-            "('Cappuccino', 'Espresso với sữa nóng và foam', 38000, 'Cà phê', 'Coffee', 'CAPPUCCINO'), " +
-            "('Latte', 'Espresso với sữa nóng', 40000, 'Cà phê', 'Coffee', 'LATTE'), " +
-            "('Mocha', 'Espresso, chocolate, sữa', 42000, 'Cà phê', 'Coffee', 'MOCHA'), " +
-            "('Americano', 'Espresso pha nước nóng', 30000, 'Cà phê', 'Coffee', 'AMERICANO'), " +
-            "('Cold Brew', 'Ủ lạnh 12-24h', 35000, 'Cà phê', 'Drink', NULL)";
-
-        String insertTea = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Trà đào cam sả', 'Trà đào, cam, sả tươi', 28000, 'Trà', 'Drink', NULL), " +
-            "('Trà chanh', 'Trà đen với chanh tươi', 20000, 'Trà', 'Drink', NULL), " +
-            "('Trà đào', 'Trà đen vị đào', 25000, 'Trà', 'Drink', NULL), " +
-            "('Trà vải', 'Trà đen vị vải', 25000, 'Trà', 'Drink', NULL), " +
-            "('Trà sữa trân châu', 'Trà sữa kèm trân châu', 32000, 'Trà', 'Drink', NULL), " +
-            "('Matcha latte', 'Bột trà xanh và sữa', 35000, 'Trà', 'Drink', NULL), " +
-            "('Trà gạo rang (Hojicha)', 'Hương gạo rang đặc trưng', 32000, 'Trà', 'Drink', NULL)";
-
-        String insertSmoothieJuice = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Sinh tố xoài', 'Xoài chín xay mịn', 30000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Sinh tố bơ', 'Bơ sáp béo mịn', 35000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Sinh tố dâu', 'Dâu tươi xay', 32000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép cam', 'Cam vắt nguyên chất', 28000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép dưa hấu', 'Lạnh mát, ít đường', 25000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép táo', 'Táo ép tươi', 28000, 'Sinh tố & Nước ép', 'Drink', NULL), " +
-            "('Nước ép cà rốt', 'Cà rốt ép tươi', 25000, 'Sinh tố & Nước ép', 'Drink', NULL)";
-
-        String insertOthers = "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type) VALUES " +
-            "('Soda chanh', 'Sảng khoái, vị chanh', 22000, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Soda việt quất', 'Vị việt quất nhẹ', 25000, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Chocolate nóng', 'Sô cô la nóng', 32000, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Chocolate đá', 'Sô cô la mát lạnh', 32000, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Yaourt đá', 'Sữa chua dầm đá', 25000, 'Đồ uống khác', 'Drink', NULL), " +
-            "('Nước suối', 'Đóng chai', 10000, 'Đồ uống khác', 'Drink', NULL)";
-
-        // Sample customers
-        String insertCustomers = "INSERT INTO customers (name, email, phone_number, loyalty_points) VALUES " +
-            "('John Doe', 'john.doe@email.com', '555-0101', 25.50), " +
-            "('Jane Smith', 'jane.smith@email.com', '555-0102', 15.75), " +
-            "('Bob Johnson', 'bob.johnson@email.com', '555-0103', 42.25)";
-        
-        // Sample tables
-        String insertTables = "INSERT INTO tables (table_number, capacity) VALUES " +
-            "(1, 2), (2, 4), (3, 2), (4, 6), (5, 4)";
-        
-        Statement stmt = connection.createStatement();
-        stmt.execute(insertCoffee);
-        stmt.execute(insertTea);
-        stmt.execute(insertSmoothieJuice);
-        stmt.execute(insertOthers);
-        stmt.execute(insertCustomers);
-        stmt.execute(insertTables);
-        stmt.close();
-    }
-
-    // Migrate existing data to VND scale if appears to be USD-like values
-    private void migrateToVNDIfNeeded() {
-        try (Statement stmt = connection.createStatement()) {
-            // Heuristic: if average base_price < 100 (likely USD scale), multiply by 10000 to get VND-like values
-            ResultSet rs = stmt.executeQuery("SELECT AVG(base_price) AS avgp FROM menu_items");
-            double avg = rs.next() ? rs.getDouble("avgp") : 0.0;
-            rs.close();
-            if (avg > 0 && avg < 100) {
-                connection.setAutoCommit(false);
-                // Update menu_items prices
-                stmt.executeUpdate("UPDATE menu_items SET base_price = ROUND(base_price * 10000, 3)");
-                // Update existing orders and order_items monetary columns accordingly
-                stmt.executeUpdate("UPDATE order_items SET unit_price = ROUND(unit_price * 10000, 3), total_price = ROUND(total_price * 10000, 3)");
-                stmt.executeUpdate("UPDATE orders SET subtotal = ROUND(subtotal * 10000, 3), tax = ROUND(tax * 10000, 3), discount = ROUND(discount * 10000, 3), total_amount = ROUND(total_amount * 10000, 3)");
-                stmt.executeUpdate("UPDATE payments SET amount = ROUND(amount * 10000, 3), amount_paid = ROUND(amount_paid * 10000, 3), change_given = ROUND(change_given * 10000, 3)");
-                connection.commit();
-                connection.setAutoCommit(true);
-            }
-        } catch (SQLException e) {
-            try {
-                connection.rollback();
-                connection.setAutoCommit(true);
-            } catch (SQLException ignore) {}
-            System.err.println("Migration to VND failed: " + e.getMessage());
-        }
-    }
-    
-    // Test database connection
-    public boolean testConnection() {
-        try {
+            getConnection();
             Statement stmt = connection.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT 1");
-            boolean hasResult = rs.next();
+            boolean ok = rs.next();
             rs.close();
             stmt.close();
-            return hasResult;
+            System.out.println("Connect fine!");
+            return ok;
         } catch (SQLException e) {
-            System.err.println("Database connection test failed: " + e.getMessage());
+            System.err.println("Wrong connection: " + e.getMessage());
             return false;
         }
     }
-    
-    // Close database connection
-    public void closeConnection() {
+
+    // ==========================
+    // Tạo bảng
+    // ==========================
+    public static void createTables() {
+    try {
+        Connection conn = getConnection(); // không đóng connection ở đây
+        if (conn == null || conn.isClosed()) {
+            conn = getConnection();
+        }
+        Statement stmt = conn.createStatement();
+
+        // menu_items (sử dụng base_price)
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS menu_items (" +
+            "  id INT AUTO_INCREMENT PRIMARY KEY," +
+            "  name VARCHAR(255) NOT NULL," +
+            "  description TEXT," +
+            "  base_price DECIMAL(10,3) NOT NULL," +
+            "  category VARCHAR(100) NOT NULL," +
+            "  item_type VARCHAR(50) NOT NULL," +
+            "  coffee_type VARCHAR(50)," +
+            "  is_available TINYINT(1) DEFAULT 1," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+            ") ENGINE=InnoDB;"
+        );
+
+        // Deduplicate existing rows by name (keep the smallest id)
+        stmt.executeUpdate(
+            "DELETE mi1 FROM menu_items mi1 " +
+            "JOIN menu_items mi2 ON mi1.name = mi2.name AND mi1.id > mi2.id"
+        );
+
+        // Enforce unique names to avoid duplicates in future inserts
+        try {
+            stmt.executeUpdate(
+                "ALTER TABLE menu_items ADD CONSTRAINT uk_menu_items_name UNIQUE (name)"
+            );
+        } catch (SQLException ignore) {
+            // Unique key may already exist; safely ignore
+        }
+
+        // customers
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS customers (" +
+            "  customer_id INT AUTO_INCREMENT PRIMARY KEY," +
+            "  name VARCHAR(100) NOT NULL," +
+            "  email VARCHAR(150) UNIQUE," +
+            "  phone_number VARCHAR(20)," +
+            "  loyalty_points DECIMAL(10,2) DEFAULT 0.00," +
+            "  registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+            ") ENGINE=InnoDB;"
+        );
+
+        // tables (bàn)
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS tables (" +
+            "  table_number INT PRIMARY KEY," +
+            "  capacity INT NOT NULL," +
+            "  status VARCHAR(20) DEFAULT 'AVAILABLE'," +
+            "  current_customer_id INT NULL," +
+            "  occupied_since TIMESTAMP NULL," +
+            "  reserved_until TIMESTAMP NULL," +
+            "  notes TEXT," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+            "  CONSTRAINT fk_tables_customer FOREIGN KEY (current_customer_id) REFERENCES customers(customer_id)" +
+            ") ENGINE=InnoDB;"
+        );
+
+        // orders
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS orders (" +
+            "  order_id INT AUTO_INCREMENT PRIMARY KEY," +
+            "  customer_id INT NOT NULL," +
+            "  status VARCHAR(20) DEFAULT 'PENDING'," +
+            "  service_type VARCHAR(20) NOT NULL," +
+            "  table_number INT NULL," +
+            "  subtotal DECIMAL(10,3) NOT NULL," +
+            "  tax DECIMAL(10,3) NOT NULL," +
+            "  discount DECIMAL(10,3) DEFAULT 0.00," +
+            "  total_amount DECIMAL(10,3) NOT NULL," +
+            "  special_instructions TEXT," +
+            "  order_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  completion_time TIMESTAMP NULL," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+            "  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)," +
+            "  CONSTRAINT fk_orders_table FOREIGN KEY (table_number) REFERENCES tables(table_number)" +
+            ") ENGINE=InnoDB;"
+        );
+
+        // order_items
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS order_items (" +
+            "  order_item_id INT AUTO_INCREMENT PRIMARY KEY," +
+            "  order_id INT NOT NULL," +
+            "  menu_item_id INT NOT NULL," +
+            "  quantity INT NOT NULL," +
+            "  unit_price DECIMAL(10,3) NOT NULL," +
+            "  total_price DECIMAL(10,3) NOT NULL," +
+            "  customizations TEXT," +
+            "  size VARCHAR(20)," +
+            "  is_hot TINYINT(1)," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  CONSTRAINT fk_orderitems_order FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE," +
+            "  CONSTRAINT fk_orderitems_menu FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)" +
+            ") ENGINE=InnoDB;"
+        );
+
+        // payments
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS payments (" +
+            "  payment_id INT AUTO_INCREMENT PRIMARY KEY," +
+            "  order_id INT NOT NULL," +
+            "  payment_method VARCHAR(20) NOT NULL," +
+            "  status VARCHAR(20) DEFAULT 'PENDING'," +
+            "  amount DECIMAL(10,3) NOT NULL," +
+            "  amount_paid DECIMAL(10,3) DEFAULT 0.00," +
+            "  change_given DECIMAL(10,3) DEFAULT 0.00," +
+            "  transaction_reference VARCHAR(100)," +
+            "  card_last_four_digits VARCHAR(4)," +
+            "  failure_reason TEXT," +
+            "  payment_time TIMESTAMP NULL," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+            "  CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders(order_id)" +
+            ") ENGINE=InnoDB;"
+        );
+
+        // ingredients + menu_item_ingredients
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS ingredients (" +
+            "  ingredient_id INT AUTO_INCREMENT PRIMARY KEY," +
+            "  name VARCHAR(100) NOT NULL," +
+            "  description TEXT," +
+            "  unit VARCHAR(20) NOT NULL," +
+            "  current_stock DECIMAL(10,3) DEFAULT 0.000," +
+            "  minimum_stock DECIMAL(10,3) NOT NULL," +
+            "  maximum_stock DECIMAL(10,3) NOT NULL," +
+            "  cost_per_unit DECIMAL(10,3) NOT NULL," +
+            "  expiration_date DATE," +
+            "  supplier VARCHAR(100)," +
+            "  is_active TINYINT(1) DEFAULT 1," +
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+            ") ENGINE=InnoDB;"
+        );
+
+        stmt.executeUpdate(
+            "CREATE TABLE IF NOT EXISTS menu_item_ingredients (" +
+            "  menu_item_id INT NOT NULL," +
+            "  ingredient_id INT NOT NULL," +
+            "  quantity_required DECIMAL(10,3) NOT NULL," +
+            "  PRIMARY KEY (menu_item_id, ingredient_id)," +
+            "  CONSTRAINT fk_mii_menu FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE," +
+            "  CONSTRAINT fk_mii_ing FOREIGN KEY (ingredient_id) REFERENCES ingredients(ingredient_id) ON DELETE CASCADE" +
+            ") ENGINE=InnoDB;"
+        );
+
+        stmt.execute("SET FOREIGN_KEY_CHECKS = 1;");
+        stmt.close();
+        System.out.println("Tables created or verified successfully.");
+    } catch (SQLException e) {
+        System.err.println("Error creating tables: " + e.getMessage());
+    }
+}
+
+    public static void insertSampleData() {
+    try {
+        if (connection == null || connection.isClosed()) {
+            connection = getConnection();
+        }
+        Statement stmt = connection.createStatement();
+
+        // Sample menu items - Coffee (upsert by unique name)
+        stmt.executeUpdate(
+            "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES " +
+            "('Espresso','Espresso đậm vị',25000.000,'Coffee','Coffee','ESPRESSO',1)," +
+            "('Americano','Espresso pha nước nóng',30000.000,'Coffee','Coffee','AMERICANO',1)," +
+            "('Latte','Espresso với sữa',45000.000,'Coffee','Coffee','LATTE',1)," +
+            "('Cappuccino','Espresso với sữa và foam',40000.000,'Coffee','Coffee','CAPPUCCINO',1)," +
+            "('Macchiato','Espresso với một lớp sữa',42500.000,'Coffee','Coffee','MACCHIATO',1)," +
+            "('Mocha','Espresso với sô-cô-la và sữa',50000.000,'Coffee','Coffee','MOCHA',1)," +
+            "('Frappuccino','Cà phê xay đá',55000.000,'Coffee','Coffee','FRAPPUCCINO',1) " +
+            "ON DUPLICATE KEY UPDATE description=VALUES(description), base_price=VALUES(base_price), category=VALUES(category), item_type=VALUES(item_type), coffee_type=VALUES(coffee_type), is_available=VALUES(is_available)"
+        );
+
+        // Sample menu items - Food (upsert by unique name)
+        stmt.executeUpdate(
+            "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES " +
+            "('Croissant','Bánh sừng bò bơ',35000.000,'Pastry','Food',NULL,1)," +
+            "('Muffin','Bánh muffin mới nướng',27500.000,'Pastry','Food',NULL,1)," +
+            "('Sandwich','Bánh mì kẹp nướng',65000.000,'Food','Food',NULL,1)," +
+            "('Bánh mì pate','Bánh mì pate truyền thống',25000.000,'Food','Food',NULL,1)," +
+            "('Bánh mì thịt nướng','Bánh mì thịt nướng BBQ',45000.000,'Food','Food',NULL,1)," +
+            "('Pizza mini','Pizza mini 4 mùa',80000.000,'Food','Food',NULL,1) " +
+            "ON DUPLICATE KEY UPDATE description=VALUES(description), base_price=VALUES(base_price), category=VALUES(category), item_type=VALUES(item_type), coffee_type=VALUES(coffee_type), is_available=VALUES(is_available)"
+        );
+
+        // Sample menu items - Vietnamese Coffee
+        stmt.executeUpdate(
+            "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES " +
+            "('Cà phê sữa đá','Cà phê pha với sữa đặc',25000.000,'Coffee','Coffee','VIETNAMESE',1)," +
+            "('Cà phê đen đá','Cà phê rang xay nguyên chất',20000.000,'Coffee','Coffee','VIETNAMESE',1)," +
+            "('Cà phê sữa nóng','Cà phê sữa ấm nóng',25000.000,'Coffee','Coffee','VIETNAMESE',1) " +
+            "ON DUPLICATE KEY UPDATE description=VALUES(description), base_price=VALUES(base_price), category=VALUES(category), item_type=VALUES(item_type), coffee_type=VALUES(coffee_type), is_available=VALUES(is_available)"
+        );
+
+        // Sample menu items - Tea Drinks
+        stmt.executeUpdate(
+            "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES " +
+            "('Trà đào cam sả','Trà đào với cam sả tươi',35000.000,'Tea','Drink',NULL,1)," +
+            "('Trà sữa trân châu','Trà sữa với trân châu đen',40000.000,'Tea','Drink',NULL,1)," +
+            "('Trà xanh matcha','Trà xanh matcha Nhật Bản',45000.000,'Tea','Drink',NULL,1)," +
+            "('Trà hoa cúc','Trà hoa cúc thảo mộc',30000.000,'Tea','Drink',NULL,1) " +
+            "ON DUPLICATE KEY UPDATE description=VALUES(description), base_price=VALUES(base_price), category=VALUES(category), item_type=VALUES(item_type), coffee_type=VALUES(coffee_type), is_available=VALUES(is_available)"
+        );
+
+        // Sample menu items - Desserts
+        stmt.executeUpdate(
+            "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES " +
+            "('Tiramisu','Bánh tiramisu Ý',55000.000,'Dessert','Food',NULL,1)," +
+            "('Cheesecake','Bánh cheesecake New York',60000.000,'Dessert','Food',NULL,1)," +
+            "('Brownie','Bánh brownie sô-cô-la',35000.000,'Dessert','Food',NULL,1)," +
+            "('Ice cream','Kem tươi 3 vị',25000.000,'Dessert','Food',NULL,1) " +
+            "ON DUPLICATE KEY UPDATE description=VALUES(description), base_price=VALUES(base_price), category=VALUES(category), item_type=VALUES(item_type), coffee_type=VALUES(coffee_type), is_available=VALUES(is_available)"
+        );
+
+        // Sample menu items - Smoothies & Juices
+        stmt.executeUpdate(
+            "INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES " +
+            "('Smoothie dâu','Sinh tố dâu tây tươi',40000.000,'Smoothie','Drink',NULL,1)," +
+            "('Smoothie xoài','Sinh tố xoài nhiệt đới',35000.000,'Smoothie','Drink',NULL,1)," +
+            "('Nước cam tươi','Nước cam vắt tươi',30000.000,'Juice','Drink',NULL,1)," +
+            "('Nước chanh dây','Nước chanh dây mát lạnh',25000.000,'Juice','Drink',NULL,1) " +
+            "ON DUPLICATE KEY UPDATE description=VALUES(description), base_price=VALUES(base_price), category=VALUES(category), item_type=VALUES(item_type), coffee_type=VALUES(coffee_type), is_available=VALUES(is_available)"
+        );
+
+        // Sample customers
+        stmt.executeUpdate(
+            "INSERT IGNORE INTO customers (name, email, phone_number, loyalty_points) VALUES " +
+            "('Le Quoc Bao', 'lequocbao1352005@gmail.com', '0912345678', 25.5), " +
+            "('Jane Smith','jane.smith@email.com','0905123456',15.75)," +
+            "('Bob Johnson','bob.johnson@email.com','0905234567',42.25)," +
+            "('Alice Brown','alice.brown@email.com','0905345678',8.00)," +
+            "('Charlie Wilson','charlie.wilson@email.com','0905456789',33.50)"
+        );
+
+        // Sample tables
+        stmt.executeUpdate(
+            "INSERT IGNORE INTO tables (table_number, capacity, status) VALUES " +
+            "(1, 2, 'AVAILABLE')," +
+            "(2, 4, 'AVAILABLE')," +
+            "(3, 2, 'AVAILABLE')," +
+            "(4, 6, 'AVAILABLE')," +
+            "(5, 4, 'AVAILABLE')," +
+            "(6, 2, 'AVAILABLE')," +
+            "(7, 4, 'AVAILABLE')," +
+            "(8, 8, 'AVAILABLE')"
+        );
+
+        // Sample ingredients
+        stmt.executeUpdate(
+            "INSERT IGNORE INTO ingredients (name, description, unit, current_stock, minimum_stock, maximum_stock, cost_per_unit, supplier, is_active) VALUES " +
+            "('Coffee Beans - Arabica','Premium Arabica coffee beans','KILOGRAMS',50.0,10.0,100.0,12.50,'Coffee Suppliers Inc',1)," +
+            "('Coffee Beans - Robusta','Strong Robusta coffee beans','KILOGRAMS',30.0,5.0,80.0,10.00,'Coffee Suppliers Inc',1)," +
+            "('Milk','Fresh whole milk','LITERS',25.0,5.0,50.0,1.50,'Local Dairy',1)," +
+            "('Sugar','White granulated sugar','KILOGRAMS',15.0,3.0,30.0,2.00,'Sweet Supplies',1)," +
+            "('Chocolate Syrup','Premium chocolate syrup','LITERS',8.0,2.0,20.0,5.50,'Chocolate Co',1)," +
+            "('Vanilla Extract','Pure vanilla extract','LITERS',3.0,1.0,10.0,15.00,'Flavor House',1)"
+        );
+
+        stmt.close();
+        System.out.println("✅ Sample data inserted successfully!");
+    } catch (SQLException e) {
+        System.err.println("❌ Error inserting sample data: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+
+
+    // ==========================
+    // Chèn dữ liệu mẫu
+    // ==========================
+    // public static void insertSampleData() {
+    //     try (Statement stmt = connection.createStatement()) {
+    //         stmt.executeUpdate(
+    //             "INSERT INTO menu_items (name, category, price) VALUES " +
+    //             "('Cà phê sữa đá', 'Cà phê', 25000.00), " +
+    //             "('Cà phê đen đá', 'Cà phê', 20000.00) " +
+    //             "ON DUPLICATE KEY UPDATE name = VALUES(name);"
+    //         );
+
+    //         System.out.println("Inserted sample data into menu_items table!");
+    //     } catch (SQLException e) {
+    //         System.err.println("Wrong when inserting sample data: " + e.getMessage());
+    //     }
+    // }
+
+    // ==========================
+    // Đóng kết nối
+    // ==========================
+    public static void closeConnection() {
         try {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
-                System.out.println("Database connection closed.");
+                System.out.println("MySQL is closed");
             }
         } catch (SQLException e) {
-            System.err.println("Failed to close database connection: " + e.getMessage());
+            System.out.println("Wrong when connecting: " + e.getMessage());
         }
     }
-    
-    // Execute query and return ResultSet
-    public ResultSet executeQuery(String query) throws SQLException {
-        Statement stmt = connection.createStatement();
-        return stmt.executeQuery(query);
+
+    // ==========================
+    // Khởi tạo database hoàn chỉnh
+    // ==========================
+    public static void initializeDatabase() {
+        try {
+            System.out.println("🔄 Initializing database...");
+            getConnection();
+            testConnection();
+            createTables();
+            insertSampleData();
+            System.out.println("✅ Database initialization completed!");
+        } catch (Exception e) {
+            System.err.println("❌ Database initialization failed: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
-    
-    // Execute update query
-    public int executeUpdate(String query) throws SQLException {
-        Statement stmt = connection.createStatement();
-        int result = stmt.executeUpdate(query);
-        stmt.close();
-        return result;
-    }
-    
-    // Prepare statement
-    public PreparedStatement prepareStatement(String query) throws SQLException {
-        return connection.prepareStatement(query);
-    }
-    
-    // Begin transaction
-    public void beginTransaction() throws SQLException {
-        connection.setAutoCommit(false);
-    }
-    
-    // Commit transaction
-    public void commitTransaction() throws SQLException {
-        connection.commit();
-        connection.setAutoCommit(true);
-    }
-    
-    // Rollback transaction
-    public void rollbackTransaction() throws SQLException {
-        connection.rollback();
-        connection.setAutoCommit(true);
+
+    // ==========================
+    // Chương trình test nhanh
+    // ==========================
+    public static void main(String[] args) {
+        try {
+            initializeDatabase();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            closeConnection();
+        }
     }
 }

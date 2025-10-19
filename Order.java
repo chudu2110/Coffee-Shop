@@ -42,6 +42,16 @@ public class Order {
         this.tax = 0.0;
         this.discount = 0.0;
     }
+
+    public Order() {
+    this.orderItems = new ArrayList<>();
+    this.status = OrderStatus.PENDING;
+    this.orderTime = LocalDateTime.now();
+    this.tableNumber = -1;
+    this.specialInstructions = "";
+    this.tax = 0.0;
+    this.discount = 0.0;
+}
     
     // Getters
     public int getOrderId() {
@@ -120,6 +130,26 @@ public class Order {
             calculateTotal();
         }
     }
+    public void setOrderId(int orderId) {
+    this.orderId = orderId;
+    }
+
+    public void setCustomerId(int customerId) {
+        this.customerId = customerId;
+    }
+
+    public void setServiceType(ServiceType serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public void setOrderTime(LocalDateTime orderTime) {
+        this.orderTime = orderTime;
+    }
+    public void setOrderItems(List<OrderItem> items) { this.orderItems = items; }
+
+
+
+    
     
     // Methods
     public void addItem(MenuItem menuItem, int quantity) {

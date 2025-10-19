@@ -1,5 +1,4 @@
 import java.sql.*;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,347 +7,239 @@ import java.util.List;
  * Handles all database operations related to customers
  */
 public class CustomerDAO {
-    private DatabaseConnection dbConnection;
-    
+    private final DatabaseConnection dbConnection;
+
     public CustomerDAO() {
-        this.dbConnection = DatabaseConnection.getInstance();
+        this.dbConnection = new DatabaseConnection(); // dùng trực tiếp, không còn getInstance()
     }
-    
+
     // Create a new customer
     public int createCustomer(Customer customer) {
         String query = "INSERT INTO customers (name, email, phone_number, loyalty_points) VALUES (?, ?, ?, ?)";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+
             pstmt.setString(1, customer.getName());
             pstmt.setString(2, customer.getEmail());
             pstmt.setString(3, customer.getPhoneNumber());
             pstmt.setDouble(4, customer.getLoyaltyPoints());
-            
             int rowsAffected = pstmt.executeUpdate();
-            
+
             if (rowsAffected > 0) {
                 ResultSet generatedKeys = pstmt.getGeneratedKeys();
                 if (generatedKeys.next()) {
                     return generatedKeys.getInt(1);
                 }
             }
-            
         } catch (SQLException e) {
             System.err.println("Error creating customer: " + e.getMessage());
         }
-        
         return -1;
     }
-    
+
     // Get customer by ID
     public Customer getCustomerById(int customerId) {
         String query = "SELECT * FROM customers WHERE customer_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
             pstmt.setInt(1, customerId);
             ResultSet rs = pstmt.executeQuery();
-            
             if (rs.next()) {
                 return createCustomerFromResultSet(rs);
             }
-            
         } catch (SQLException e) {
             System.err.println("Error getting customer by ID: " + e.getMessage());
         }
-        
         return null;
     }
-    
+
     // Get customer by email
     public Customer getCustomerByEmail(String email) {
         String query = "SELECT * FROM customers WHERE email = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
             pstmt.setString(1, email);
             ResultSet rs = pstmt.executeQuery();
-            
             if (rs.next()) {
                 return createCustomerFromResultSet(rs);
             }
-            
         } catch (SQLException e) {
             System.err.println("Error getting customer by email: " + e.getMessage());
         }
-        
         return null;
     }
-    
-    // Get customer by phone number
-    public Customer getCustomerByPhone(String phoneNumber) {
-        String query = "SELECT * FROM customers WHERE phone_number = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, phoneNumber);
-            ResultSet rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                return createCustomerFromResultSet(rs);
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting customer by phone: " + e.getMessage());
-        }
-        
-        return null;
-    }
-    
+
     // Get all customers
     public List<Customer> getAllCustomers() {
         List<Customer> customers = new ArrayList<>();
         String query = "SELECT * FROM customers ORDER BY name";
-        
-        try (Statement stmt = dbConnection.getConnection().createStatement();
+        try (Connection conn = dbConnection.getConnection();
+             Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(query)) {
-            
+
             while (rs.next()) {
-                Customer customer = createCustomerFromResultSet(rs);
-                if (customer != null) {
-                    customers.add(customer);
-                }
+                customers.add(createCustomerFromResultSet(rs));
             }
-            
         } catch (SQLException e) {
             System.err.println("Error getting all customers: " + e.getMessage());
         }
-        
         return customers;
     }
-    
-    // Update customer
+
+    // Update customer info
     public boolean updateCustomer(Customer customer) {
-        String query = "UPDATE customers SET name = ?, email = ?, phone_number = ?, " +
-                      "loyalty_points = ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
+        String query = "UPDATE customers SET name = ?, email = ?, phone_number = ?, loyalty_points = ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
             pstmt.setString(1, customer.getName());
             pstmt.setString(2, customer.getEmail());
             pstmt.setString(3, customer.getPhoneNumber());
             pstmt.setDouble(4, customer.getLoyaltyPoints());
             pstmt.setInt(5, customer.getCustomerId());
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("Error updating customer: " + e.getMessage());
-            return false;
         }
+        return false;
     }
-    
-    // Update customer loyalty points
-    public boolean updateLoyaltyPoints(int customerId, double loyaltyPoints) {
-        String query = "UPDATE customers SET loyalty_points = ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setDouble(1, loyaltyPoints);
-            pstmt.setInt(2, customerId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
+
+    public List<Customer> searchCustomersByName(String name) {
+    List<Customer> customers = new ArrayList<>();
+    String query = "SELECT * FROM customers WHERE name LIKE ?";
+
+    try (Connection conn = dbConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(query)) {
+
+        stmt.setString(1, "%" + name + "%");
+        ResultSet rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            Customer c = new Customer(
+                rs.getInt("customer_id"),
+                rs.getString("name"),
+                rs.getString("email"),
+                rs.getString("phone")
+            );
+            customers.add(c);
+        }
+
+    } catch (SQLException e) {
+        System.err.println("Error searching customers: " + e.getMessage());
+    }
+
+    return customers;
+}
+
+    public static class CustomerStats {
+        private int totalCustomers;
+        private int activeCustomers;
+        private int inactiveCustomers;
+        private String topCustomerName;
+        private double totalSpending;
+
+        public CustomerStats(int totalCustomers, int activeCustomers, int inactiveCustomers, String topCustomerName, double totalSpending) {
+            this.totalCustomers = totalCustomers;
+            this.activeCustomers = activeCustomers;
+            this.inactiveCustomers = inactiveCustomers;
+            this.topCustomerName = topCustomerName;
+            this.totalSpending = totalSpending;
+        }
+
+        public int getTotalCustomers() { return totalCustomers; }
+        public int getActiveCustomers() { return activeCustomers; }
+        public int getInactiveCustomers() { return inactiveCustomers; }
+        public String getTopCustomerName() { return topCustomerName; }
+        public double getTotalSpending() { return totalSpending; }
+    }
+
+    // --- Hàm lấy thống kê ---
+    public CustomerStats getCustomerStats() {
+        String totalQuery = "SELECT COUNT(*) AS total FROM customers";
+        String activeQuery = "SELECT COUNT(*) AS active FROM customers WHERE status = 'ACTIVE'";
+        String inactiveQuery = "SELECT COUNT(*) AS inactive FROM customers WHERE status = 'INACTIVE'";
+        String topCustomerQuery = """
+            SELECT c.name, SUM(o.total_amount) AS total_spent
+            FROM customers c
+            JOIN orders o ON c.customer_id = o.customer_id
+            GROUP BY c.name
+            ORDER BY total_spent DESC
+            LIMIT 1
+        """;
+        String totalSpendingQuery = "SELECT SUM(total_amount) AS total_spent FROM orders";
+
+        int total = 0, active = 0, inactive = 0;
+        double totalSpending = 0.0;
+        String topCustomer = "N/A";
+
+        try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
+
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs1 = stmt.executeQuery(totalQuery);
+                if (rs1.next()) total = rs1.getInt("total");
+
+                ResultSet rs2 = stmt.executeQuery(activeQuery);
+                if (rs2.next()) active = rs2.getInt("active");
+
+                ResultSet rs3 = stmt.executeQuery(inactiveQuery);
+                if (rs3.next()) inactive = rs3.getInt("inactive");
+
+                ResultSet rs4 = stmt.executeQuery(topCustomerQuery);
+                if (rs4.next()) topCustomer = rs4.getString("name");
+
+                ResultSet rs5 = stmt.executeQuery(totalSpendingQuery);
+                if (rs5.next()) totalSpending = rs5.getDouble("total_spent");
+            }
+
         } catch (SQLException e) {
-            System.err.println("Error updating loyalty points: " + e.getMessage());
-            return false;
+            System.err.println("Error retrieving customer statistics: " + e.getMessage());
         }
+
+        return new CustomerStats(total, active, inactive, topCustomer, totalSpending);
     }
-    
-    // Add loyalty points
-    public boolean addLoyaltyPoints(int customerId, double pointsToAdd) {
-        String query = "UPDATE customers SET loyalty_points = loyalty_points + ?, " +
-                      "updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setDouble(1, pointsToAdd);
-            pstmt.setInt(2, customerId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Error adding loyalty points: " + e.getMessage());
-            return false;
-        }
-    }
-    
-    // Redeem loyalty points
-    public boolean redeemLoyaltyPoints(int customerId, double pointsToRedeem) {
-        // First check if customer has enough points
-        Customer customer = getCustomerById(customerId);
-        if (customer == null || customer.getLoyaltyPoints() < pointsToRedeem) {
-            return false;
-        }
-        
-        String query = "UPDATE customers SET loyalty_points = loyalty_points - ?, " +
-                      "updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setDouble(1, pointsToRedeem);
-            pstmt.setInt(2, customerId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Error redeeming loyalty points: " + e.getMessage());
-            return false;
-        }
-    }
-    
+
+
     // Delete customer
     public boolean deleteCustomer(int customerId) {
         String query = "DELETE FROM customers WHERE customer_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
             pstmt.setInt(1, customerId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("Error deleting customer: " + e.getMessage());
-            return false;
         }
-    }
-    
-    // Search customers by name
-    public List<Customer> searchCustomersByName(String searchTerm) {
-        List<Customer> customers = new ArrayList<>();
-        String query = "SELECT * FROM customers WHERE name LIKE ? ORDER BY name";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, "%" + searchTerm + "%");
-            ResultSet rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Customer customer = createCustomerFromResultSet(rs);
-                if (customer != null) {
-                    customers.add(customer);
-                }
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error searching customers: " + e.getMessage());
-        }
-        
-        return customers;
-    }
-    
-    // Get customers with high loyalty points
-    public List<Customer> getTopLoyaltyCustomers(int limit) {
-        List<Customer> customers = new ArrayList<>();
-        String query = "SELECT * FROM customers ORDER BY loyalty_points DESC LIMIT ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setInt(1, limit);
-            ResultSet rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Customer customer = createCustomerFromResultSet(rs);
-                if (customer != null) {
-                    customers.add(customer);
-                }
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting top loyalty customers: " + e.getMessage());
-        }
-        
-        return customers;
-    }
-    
-    // Check if email exists
-    public boolean emailExists(String email) {
-        String query = "SELECT COUNT(*) as count FROM customers WHERE email = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, email);
-            ResultSet rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getInt("count") > 0;
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error checking email existence: " + e.getMessage());
-        }
-        
         return false;
     }
-    
-    // Get customer statistics
-    public CustomerStats getCustomerStats() {
-        String query = "SELECT COUNT(*) as total_customers, " +
-                      "AVG(loyalty_points) as avg_loyalty_points, " +
-                      "MAX(loyalty_points) as max_loyalty_points, " +
-                      "SUM(loyalty_points) as total_loyalty_points " +
-                      "FROM customers";
-        
-        try (Statement stmt = dbConnection.getConnection().createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-            
-            if (rs.next()) {
-                return new CustomerStats(
-                    rs.getInt("total_customers"),
-                    rs.getDouble("avg_loyalty_points"),
-                    rs.getDouble("max_loyalty_points"),
-                    rs.getDouble("total_loyalty_points")
-                );
-            }
-            
+
+    // Add loyalty points
+    public boolean addLoyaltyPoints(int customerId, double pointsToAdd) {
+        String query = "UPDATE customers SET loyalty_points = loyalty_points + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setDouble(1, pointsToAdd);
+            pstmt.setInt(2, customerId);
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.err.println("Error getting customer statistics: " + e.getMessage());
+            System.err.println("Error adding loyalty points: " + e.getMessage());
         }
-        
-        return new CustomerStats(0, 0.0, 0.0, 0.0);
+        return false;
     }
-    
-    // Helper method to create Customer object from ResultSet
+
+    // Helper: Convert ResultSet → Customer object
     private Customer createCustomerFromResultSet(ResultSet rs) throws SQLException {
-        int customerId = rs.getInt("customer_id");
+        int id = rs.getInt("customer_id");
         String name = rs.getString("name");
         String email = rs.getString("email");
-        String phoneNumber = rs.getString("phone_number");
-        double loyaltyPoints = rs.getDouble("loyalty_points");
-        
-        Customer customer = new Customer(customerId, name, email, phoneNumber);
-        customer.addLoyaltyPoints(loyaltyPoints);
-        
-        return customer;
-    }
-    
-    // Inner class for customer statistics
-    public static class CustomerStats {
-        private final int totalCustomers;
-        private final double avgLoyaltyPoints;
-        private final double maxLoyaltyPoints;
-        private final double totalLoyaltyPoints;
-        
-        public CustomerStats(int totalCustomers, double avgLoyaltyPoints, 
-                           double maxLoyaltyPoints, double totalLoyaltyPoints) {
-            this.totalCustomers = totalCustomers;
-            this.avgLoyaltyPoints = avgLoyaltyPoints;
-            this.maxLoyaltyPoints = maxLoyaltyPoints;
-            this.totalLoyaltyPoints = totalLoyaltyPoints;
-        }
-        
-        public int getTotalCustomers() { return totalCustomers; }
-        public double getAvgLoyaltyPoints() { return avgLoyaltyPoints; }
-        public double getMaxLoyaltyPoints() { return maxLoyaltyPoints; }
-        public double getTotalLoyaltyPoints() { return totalLoyaltyPoints; }
-        
-        @Override
-        public String toString() {
-            return String.format("Customer Statistics:\n" +
-                               "Total Customers: %d\n" +
-                               "Average Loyalty Points: %.2f\n" +
-                               "Maximum Loyalty Points: %.2f\n" +
-                               "Total Loyalty Points: %.2f",
-                               totalCustomers, avgLoyaltyPoints, maxLoyaltyPoints, totalLoyaltyPoints);
-        }
+        String phone = rs.getString("phone_number");
+        double points = rs.getDouble("loyalty_points");
+
+        Customer c = new Customer(id, name, email, phone);
+        c.addLoyaltyPoints(points);
+        return c;
     }
 }

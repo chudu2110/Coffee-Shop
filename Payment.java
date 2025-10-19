@@ -5,14 +5,16 @@ import java.time.LocalDateTime;
  * Handles different payment methods and transaction details
  */
 public class Payment {
+
     public enum PaymentMethod {
         CASH, CREDIT_CARD, DEBIT_CARD, MOBILE_PAYMENT, LOYALTY_POINTS
     }
     
+
     public enum PaymentStatus {
         PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED
     }
-    
+
     private int paymentId;
     private int orderId;
     private PaymentMethod paymentMethod;
@@ -87,6 +89,11 @@ public class Payment {
     public String getFailureReason() {
         return failureReason;
     }
+    public void setStatus(PaymentStatus status) {
+        this.status = status;
+}
+
+
     
     // Setters
     public void setTransactionReference(String transactionReference) {

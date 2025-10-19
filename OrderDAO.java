@@ -1,55 +1,55 @@
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Data Access Object for Order operations
- * Handles all database operations related to orders and order items
- */
 public class OrderDAO {
     private DatabaseConnection dbConnection;
     private MenuItemDAO menuItemDAO;
     
     public OrderDAO() {
-        this.dbConnection = DatabaseConnection.getInstance();
-        this.menuItemDAO = new MenuItemDAO();
-    }
-    
-    // Create a new order (matches current schema)
+    this.dbConnection = DatabaseConnection.getInstance();
+    this.menuItemDAO = new MenuItemDAO();
+}
+
+
+    // --- Tạo đơn hàng ---
     public int createOrder(Order order) {
         String orderQuery = "INSERT INTO orders (customer_id, status, service_type, table_number, subtotal, tax, discount, total_amount, special_instructions) " +
-                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        
-        Connection conn = dbConnection.getConnection();
-        
-        try {
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(orderQuery, Statement.RETURN_GENERATED_KEYS)) {
+
             conn.setAutoCommit(false);
-            
-            // Insert order
-            try (PreparedStatement pstmt = conn.prepareStatement(orderQuery, Statement.RETURN_GENERATED_KEYS)) {
-                pstmt.setInt(1, order.getCustomerId());
-                pstmt.setString(2, order.getStatus().toString());
-                pstmt.setString(3, order.getServiceType().toString());
-                if (order.getServiceType() == Order.ServiceType.DINE_IN && order.getTableNumber() > 0) {
-                    pstmt.setInt(4, order.getTableNumber());
-                } else {
-                    pstmt.setNull(4, Types.INTEGER);
-                }
-                pstmt.setDouble(5, order.getSubtotal());
-                pstmt.setDouble(6, order.getTax());
-                pstmt.setDouble(7, order.getDiscount());
-                pstmt.setDouble(8, order.getTotalAmount());
-                pstmt.setString(9, order.getSpecialInstructions());
-                
-                int rowsAffected = pstmt.executeUpdate();
-                
-                if (rowsAffected > 0) {
-                    ResultSet generatedKeys = pstmt.getGeneratedKeys();
-                    if (generatedKeys.next()) {
-                        int orderId = generatedKeys.getInt(1);
-                        
-                        // Insert order items
+
+            pstmt.setInt(1, order.getCustomerId());
+            pstmt.setString(2, order.getStatus().toString());
+            pstmt.setString(3, order.getServiceType().toString());
+
+            if (order.getServiceType() == Order.ServiceType.DINE_IN && order.getTableNumber() > 0)
+                pstmt.setInt(4, order.getTableNumber());
+            else
+                pstmt.setNull(4, Types.INTEGER);
+
+            pstmt.setDouble(5, order.getSubtotal());
+            pstmt.setDouble(6, order.getTax());
+            pstmt.setDouble(7, order.getDiscount());
+            pstmt.setDouble(8, order.getTotalAmount());
+            pstmt.setString(9, order.getSpecialInstructions());
+
+            int rowsAffected = pstmt.executeUpdate();
+
+            if (rowsAffected > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        int orderId = rs.getInt(1);
                         if (insertOrderItems(orderId, order.getOrderItems(), conn)) {
                             conn.commit();
                             return orderId;
@@ -57,32 +57,20 @@ public class OrderDAO {
                     }
                 }
             }
-            
+
             conn.rollback();
-            
+
         } catch (SQLException e) {
-            try {
-                conn.rollback();
-            } catch (SQLException rollbackEx) {
-                System.err.println("Error rolling back transaction: " + rollbackEx.getMessage());
-            }
-            System.err.println("Error creating order: " + e.getMessage());
-        } finally {
-            try {
-                conn.setAutoCommit(true);
-            } catch (SQLException e) {
-                System.err.println("Error resetting auto-commit: " + e.getMessage());
-            }
+            e.printStackTrace();
         }
-        
+
         return -1;
     }
-    
-    // Insert order items
+
+    // --- Thêm order items ---
     private boolean insertOrderItems(int orderId, List<OrderItem> orderItems, Connection conn) throws SQLException {
-        String itemQuery = "INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, customizations) " +
-                          "VALUES (?, ?, ?, ?, ?, ?)";
-        
+        String itemQuery = "INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, customizations) VALUES (?, ?, ?, ?, ?, ?)";
+
         try (PreparedStatement pstmt = conn.prepareStatement(itemQuery)) {
             for (OrderItem item : orderItems) {
                 pstmt.setInt(1, orderId);
@@ -91,423 +79,318 @@ public class OrderDAO {
                 pstmt.setDouble(4, item.getUnitPrice());
                 pstmt.setDouble(5, item.getItemTotal());
                 pstmt.setString(6, item.getCustomizations());
-                
                 pstmt.addBatch();
             }
-            
-            int[] results = pstmt.executeBatch();
-            
-            // Check if all items were inserted successfully
-            for (int result : results) {
-                if (result <= 0) {
-                    return false;
-                }
-            }
-            
+
+            pstmt.executeBatch();
             return true;
         }
     }
-    
-    // Get order by ID
-    public Order getOrderById(int orderId) {
-        String query = "SELECT * FROM orders WHERE order_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setInt(1, orderId);
-            ResultSet rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                Order order = createOrderFromResultSet(rs);
-                if (order != null) {
-                    // Load order items
-                    List<OrderItem> orderItems = getOrderItems(orderId);
-                    for (OrderItem item : orderItems) {
-                        order.addItem(item.getMenuItem(), item.getQuantity());
-                    }
-                }
-                return order;
+
+    // --- Lấy order theo ID ---
+    public List<Order> getOrdersByCustomerId(int customerId) {
+    List<Order> orders = new ArrayList<>();
+    String query = "SELECT * FROM orders WHERE customer_id = ?";
+
+    try (Connection conn = dbConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(query)) {
+
+        stmt.setInt(1, customerId);
+        ResultSet rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            Order order = new Order(); // dùng constructor rỗng
+
+            order.setOrderId(rs.getInt("order_id"));
+            order.setCustomerId(rs.getInt("customer_id"));
+
+            // Convert chuỗi sang Enum
+            String statusStr = rs.getString("status");
+            if (statusStr != null) {
+                order.setStatus(Order.OrderStatus.valueOf(statusStr));
             }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting order by ID: " + e.getMessage());
+
+            String serviceTypeStr = rs.getString("service_type");
+            if (serviceTypeStr != null) {
+                order.setServiceType(Order.ServiceType.valueOf(serviceTypeStr));
+            }
+
+            order.setTableNumber(rs.getInt("table_number"));
+            order.setDiscount(rs.getDouble("discount"));
+            order.setSpecialInstructions(rs.getString("special_instructions"));
+
+            // Gán thời gian
+            Timestamp ts = rs.getTimestamp("order_date");
+            if (ts != null) {
+                order.setOrderTime(ts.toLocalDateTime());
+            }
+
+            // Lấy danh sách món
+            order.getOrderItems().addAll(getOrderItems(order.getOrderId()));
+
+            orders.add(order);
         }
-        
-        return null;
+
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
-    
-    // Get order items for a specific order
+
+    return orders;
+}
+
+    public List<Order> getAllOrders() {
+    List<Order> orders = new ArrayList<>();
+    String query = "SELECT * FROM orders ORDER BY order_time DESC";
+
+    try (Connection conn = dbConnection.getConnection();
+         Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(query)) {
+
+        while (rs.next()) {
+            Order order = createOrderFromResultSet(rs);
+            order.getOrderItems().addAll(getOrderItems(order.getOrderId()));
+            orders.add(order);
+        }
+
+    } catch (SQLException e) {
+        System.err.println("Error retrieving all orders: " + e.getMessage());
+    }
+
+    return orders;
+}
+
+
+    // --- Lấy danh sách item theo order ---
     private List<OrderItem> getOrderItems(int orderId) {
         List<OrderItem> orderItems = new ArrayList<>();
         String query = "SELECT * FROM order_items WHERE order_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
+
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
             pstmt.setInt(1, orderId);
             ResultSet rs = pstmt.executeQuery();
-            
+
             while (rs.next()) {
                 int menuItemId = rs.getInt("menu_item_id");
                 int quantity = rs.getInt("quantity");
                 double unitPrice = rs.getDouble("unit_price");
                 String customizations = rs.getString("customizations");
-                
+
                 MenuItem menuItem = menuItemDAO.getMenuItemById(menuItemId);
                 if (menuItem != null) {
                     OrderItem orderItem = new OrderItem(menuItem, quantity, customizations);
                     orderItems.add(orderItem);
                 }
             }
-            
+
         } catch (SQLException e) {
-            System.err.println("Error getting order items: " + e.getMessage());
+            e.printStackTrace();
         }
-        
+
         return orderItems;
     }
-    
-    // Get orders by customer ID
-    public List<Order> getOrdersByCustomerId(int customerId) {
-        List<Order> orders = new ArrayList<>();
-        String query = "SELECT * FROM orders WHERE customer_id = ? ORDER BY created_at DESC";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setInt(1, customerId);
-            ResultSet rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Order order = createOrderFromResultSet(rs);
-                if (order != null) {
-                    // Load order items
-                    List<OrderItem> orderItems = getOrderItems(order.getOrderId());
-                    for (OrderItem item : orderItems) {
-                        order.addItem(item.getMenuItem(), item.getQuantity());
-                    }
-                    orders.add(order);
-                }
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting orders by customer ID: " + e.getMessage());
-        }
-        
-        return orders;
-    }
-    
-    // Get orders by status
+
     public List<Order> getOrdersByStatus(Order.OrderStatus status) {
-        List<Order> orders = new ArrayList<>();
-        String query = "SELECT * FROM orders WHERE status = ? ORDER BY created_at ASC";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, status.toString());
-            ResultSet rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Order order = createOrderFromResultSet(rs);
-                if (order != null) {
-                    // Load order items
-                    List<OrderItem> orderItems = getOrderItems(order.getOrderId());
-                    for (OrderItem item : orderItems) {
-                        order.addItem(item.getMenuItem(), item.getQuantity());
-                    }
-                    orders.add(order);
-                }
+    List<Order> orders = new ArrayList<>();
+    String query = "SELECT * FROM orders WHERE status = ?";
+
+    try (Connection conn = dbConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(query)) {
+
+        stmt.setString(1, status.name());
+        ResultSet rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            Order order = new Order();
+            order.setOrderId(rs.getInt("order_id"));
+            order.setCustomerId(rs.getInt("customer_id"));
+
+            String serviceTypeStr = rs.getString("service_type");
+            if (serviceTypeStr != null) {
+                order.setServiceType(Order.ServiceType.valueOf(serviceTypeStr));
             }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting orders by status: " + e.getMessage());
-        }
-        
-        return orders;
-    }
-    
-    // Get orders by table ID
-    public List<Order> getOrdersByTableId(int tableId) {
-        List<Order> orders = new ArrayList<>();
-        String query = "SELECT * FROM orders WHERE table_number = ? ORDER BY created_at DESC";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setInt(1, tableId);
-            ResultSet rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Order order = createOrderFromResultSet(rs);
-                if (order != null) {
-                    // Load order items
-                    List<OrderItem> orderItems = getOrderItems(order.getOrderId());
-                    for (OrderItem item : orderItems) {
-                        order.addItem(item.getMenuItem(), item.getQuantity());
-                    }
-                    orders.add(order);
-                }
+
+            order.setStatus(status);
+
+            Timestamp ts = rs.getTimestamp("order_date");
+            if (ts != null) {
+                order.setOrderTime(ts.toLocalDateTime());
             }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting orders by table ID: " + e.getMessage());
+
+            order.getOrderItems().addAll(getOrderItems(order.getOrderId()));
+            orders.add(order);
         }
-        
-        return orders;
+
+    } catch (SQLException e) {
+        System.err.println("Error retrieving orders by status: " + e.getMessage());
     }
-    
-    // Get all orders
-    public List<Order> getAllOrders() {
-        List<Order> orders = new ArrayList<>();
-        String query = "SELECT * FROM orders ORDER BY created_at DESC";
-        
-        try (Statement stmt = dbConnection.getConnection().createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-            
-            while (rs.next()) {
-                Order order = createOrderFromResultSet(rs);
-                if (order != null) {
-                    // Load order items
-                    List<OrderItem> orderItems = getOrderItems(order.getOrderId());
-                    for (OrderItem item : orderItems) {
-                        order.addItem(item.getMenuItem(), item.getQuantity());
-                    }
-                    orders.add(order);
-                }
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting all orders: " + e.getMessage());
+
+    return orders;
+}
+
+    public Order getOrderById(int orderId) {
+    String query = "SELECT * FROM orders WHERE order_id = ?";
+    Order order = null;
+
+    try (Connection conn = dbConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(query)) {
+
+        stmt.setInt(1, orderId);
+        ResultSet rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            int customerId = rs.getInt("customer_id");
+            String serviceTypeStr = rs.getString("service_type");
+            String statusStr = rs.getString("status");
+            int tableNumber = rs.getInt("table_number");
+            String specialInstructions = rs.getString("special_instructions");
+
+            // Khởi tạo order
+            Order.ServiceType serviceType = Order.ServiceType.valueOf(serviceTypeStr);
+            Order.OrderStatus status = Order.OrderStatus.valueOf(statusStr);
+
+            order = new Order(orderId, customerId, serviceType);
+            order.setStatus(status);
+            order.setTableNumber(tableNumber);
+            order.setSpecialInstructions(specialInstructions);
+
+            // Lấy các item trong order
+            order.setOrderItems(getOrderItems(orderId));
         }
-        
-        return orders;
+
+    } catch (SQLException e) {
+        System.err.println("Error retrieving order by ID: " + e.getMessage());
     }
-    
-    // Update order status
-    public boolean updateOrderStatus(int orderId, Order.OrderStatus status) {
-        String query = "UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, status.toString());
-            pstmt.setInt(2, orderId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Error updating order status: " + e.getMessage());
-            return false;
+
+    return order;
+}
+
+    public boolean updateOrderStatus(int orderId, Order.OrderStatus newStatus) {
+    String query = "UPDATE orders SET status = ? WHERE order_id = ?";
+
+    try (Connection conn = dbConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(query)) {
+
+        stmt.setString(1, newStatus.toString());
+        stmt.setInt(2, orderId);
+
+        int rowsUpdated = stmt.executeUpdate();
+        if (rowsUpdated > 0) {
+            System.out.println("Order ID " + orderId + " updated to status: " + newStatus);
+            return true;
         }
+
+    } catch (SQLException e) {
+        System.err.println("Error updating order status: " + e.getMessage());
     }
-    
-    // Update order total amount
-    public boolean updateOrderTotal(int orderId, double totalAmount) {
-        String query = "UPDATE orders SET total_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setDouble(1, totalAmount);
-            pstmt.setInt(2, orderId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Error updating order total: " + e.getMessage());
-            return false;
-        }
-    }
-    
-    // Update order notes
-    public boolean updateOrderNotes(int orderId, String notes) {
-        String query = "UPDATE orders SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setString(1, notes);
-            pstmt.setInt(2, orderId);
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Error updating order notes: " + e.getMessage());
-            return false;
-        }
-    }
-    
-    // Delete order
-    public boolean deleteOrder(int orderId) {
-        Connection conn = dbConnection.getConnection();
-        
-        try {
-            conn.setAutoCommit(false);
-            
-            // Delete order items first
-            String deleteItemsQuery = "DELETE FROM order_items WHERE order_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsQuery)) {
-                pstmt.setInt(1, orderId);
-                pstmt.executeUpdate();
-            }
-            
-            // Delete order
-            String deleteOrderQuery = "DELETE FROM orders WHERE order_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteOrderQuery)) {
-                pstmt.setInt(1, orderId);
-                int rowsAffected = pstmt.executeUpdate();
-                
-                if (rowsAffected > 0) {
-                    conn.commit();
-                    return true;
-                }
-            }
-            
-            conn.rollback();
-            
-        } catch (SQLException e) {
-            try {
-                conn.rollback();
-            } catch (SQLException rollbackEx) {
-                System.err.println("Error rolling back transaction: " + rollbackEx.getMessage());
-            }
-            System.err.println("Error deleting order: " + e.getMessage());
-        } finally {
-            try {
-                conn.setAutoCommit(true);
-            } catch (SQLException e) {
-                System.err.println("Error resetting auto-commit: " + e.getMessage());
-            }
-        }
-        
-        return false;
-    }
-    
-    // Get orders by date range
+
+    return false;
+}
+
     public List<Order> getOrdersByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        List<Order> orders = new ArrayList<>();
-        String query = "SELECT * FROM orders WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC";
-        
-        try (PreparedStatement pstmt = dbConnection.prepareStatement(query)) {
-            pstmt.setTimestamp(1, Timestamp.valueOf(startDate));
-            pstmt.setTimestamp(2, Timestamp.valueOf(endDate));
-            ResultSet rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Order order = createOrderFromResultSet(rs);
-                if (order != null) {
-                    // Load order items
-                    List<OrderItem> orderItems = getOrderItems(order.getOrderId());
-                    for (OrderItem item : orderItems) {
-                        order.addItem(item.getMenuItem(), item.getQuantity());
-                    }
-                    orders.add(order);
-                }
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting orders by date range: " + e.getMessage());
+    List<Order> orders = new ArrayList<>();
+    String query = "SELECT * FROM orders WHERE order_date BETWEEN ? AND ? ORDER BY order_date DESC";
+
+    try (Connection conn = dbConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(query)) {
+
+        stmt.setTimestamp(1, Timestamp.valueOf(startDate));
+        stmt.setTimestamp(2, Timestamp.valueOf(endDate));
+
+        ResultSet rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            Order order = createOrderFromResultSet(rs);
+            orders.add(order);
         }
-        
-        return orders;
+
+    } catch (SQLException e) {
+        System.err.println("Error retrieving orders by date range: " + e.getMessage());
     }
-    
-    // Get order statistics
+
+    return orders;
+}
+
+    public static class OrderStats {
+        private int totalOrders;
+        private int pendingOrders;
+        private int completedOrders;
+        private int cancelledOrders;
+        private double avgOrderValue;
+        private double totalRevenue;
+
+        public OrderStats(int totalOrders, int pendingOrders, int completedOrders, int cancelledOrders,
+                          double avgOrderValue, double totalRevenue) {
+            this.totalOrders = totalOrders;
+            this.pendingOrders = pendingOrders;
+            this.completedOrders = completedOrders;
+            this.cancelledOrders = cancelledOrders;
+            this.avgOrderValue = avgOrderValue;
+            this.totalRevenue = totalRevenue;
+        }
+
+        public int getTotalOrders() { return totalOrders; }
+        public int getPendingOrders() { return pendingOrders; }
+        public int getCompletedOrders() { return completedOrders; }
+        public int getCancelledOrders() { return cancelledOrders; }
+        public double getAvgOrderValue() { return avgOrderValue; }
+        public double getTotalRevenue() { return totalRevenue; }
+    }
+
     public OrderStats getOrderStats() {
-        String query = "SELECT COUNT(*) as total_orders, " +
-                      "SUM(total_amount) as total_revenue, " +
-                      "AVG(total_amount) as avg_order_value, " +
-                      "COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_orders, " +
-                      "COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_orders, " +
-                      "COUNT(CASE WHEN status = 'PREPARING' THEN 1 END) as preparing_orders, " +
-                      "COUNT(CASE WHEN status = 'READY' THEN 1 END) as ready_orders, " +
-                      "COUNT(CASE WHEN status = 'CANCELLED' THEN 1 END) as cancelled_orders " +
-                      "FROM orders";
-        
-        try (Statement stmt = dbConnection.getConnection().createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-            
+        String sql = """
+            SELECT
+                COUNT(*) AS totalOrders,
+                SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) AS pendingOrders,
+                SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) AS completedOrders,
+                SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelledOrders,
+                AVG(total_amount) AS avgOrderValue,
+                SUM(total_amount) AS totalRevenue
+            FROM orders
+        """;
+
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
             if (rs.next()) {
                 return new OrderStats(
-                    rs.getInt("total_orders"),
-                    rs.getDouble("total_revenue"),
-                    rs.getDouble("avg_order_value"),
-                    rs.getInt("completed_orders"),
-                    rs.getInt("pending_orders"),
-                    rs.getInt("preparing_orders"),
-                    rs.getInt("ready_orders"),
-                    rs.getInt("cancelled_orders")
+                    rs.getInt("totalOrders"),
+                    rs.getInt("pendingOrders"),
+                    rs.getInt("completedOrders"),
+                    rs.getInt("cancelledOrders"),
+                    rs.getDouble("avgOrderValue"),
+                    rs.getDouble("totalRevenue")
                 );
             }
-            
+
         } catch (SQLException e) {
-            System.err.println("Error getting order statistics: " + e.getMessage());
+            System.err.println("Error retrieving order statistics: " + e.getMessage());
         }
-        
-        return new OrderStats(0, 0.0, 0.0, 0, 0, 0, 0, 0);
+
+        return new OrderStats(0, 0, 0, 0, 0.0, 0.0);
     }
-    
-    // Helper method to create Order object from ResultSet
+
+    // --- Helper tạo Order từ ResultSet ---
     private Order createOrderFromResultSet(ResultSet rs) throws SQLException {
         int orderId = rs.getInt("order_id");
         int customerId = rs.getInt("customer_id");
-        int tableId = rs.getInt("table_number");
         String serviceTypeStr = rs.getString("service_type");
         String statusStr = rs.getString("status");
-        double totalAmount = rs.getDouble("total_amount");
+        int tableNumber = rs.getInt("table_number");
         String notes = rs.getString("special_instructions");
-        
+
         Order.ServiceType serviceType = Order.ServiceType.valueOf(serviceTypeStr);
         Order.OrderStatus status = Order.OrderStatus.valueOf(statusStr);
-        
+
         Order order = new Order(orderId, customerId, serviceType);
-        if (tableId > 0) {
-            order.setTableNumber(tableId);
-        }
         order.setStatus(status);
+        order.setTableNumber(tableNumber);
         order.setSpecialInstructions(notes);
-        
+
         return order;
     }
-    
-    // Inner class for order statistics
-    public static class OrderStats {
-        private final int totalOrders;
-        private final double totalRevenue;
-        private final double avgOrderValue;
-        private final int completedOrders;
-        private final int pendingOrders;
-        private final int preparingOrders;
-        private final int readyOrders;
-        private final int cancelledOrders;
-        
-        public OrderStats(int totalOrders, double totalRevenue, double avgOrderValue,
-                         int completedOrders, int pendingOrders, int preparingOrders,
-                         int readyOrders, int cancelledOrders) {
-            this.totalOrders = totalOrders;
-            this.totalRevenue = totalRevenue;
-            this.avgOrderValue = avgOrderValue;
-            this.completedOrders = completedOrders;
-            this.pendingOrders = pendingOrders;
-            this.preparingOrders = preparingOrders;
-            this.readyOrders = readyOrders;
-            this.cancelledOrders = cancelledOrders;
-        }
-        
-        // Getters
-        public int getTotalOrders() { return totalOrders; }
-        public double getTotalRevenue() { return totalRevenue; }
-        public double getAvgOrderValue() { return avgOrderValue; }
-        public int getCompletedOrders() { return completedOrders; }
-        public int getPendingOrders() { return pendingOrders; }
-        public int getPreparingOrders() { return preparingOrders; }
-        public int getReadyOrders() { return readyOrders; }
-        public int getCancelledOrders() { return cancelledOrders; }
-        
-        @Override
-        public String toString() {
-            java.text.NumberFormat vndFmt = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
-            return String.format("Thống kê đơn hàng:\n" +
-                               "Tổng số đơn: %d\n" +
-                               "Doanh thu: %s\n" +
-                               "Giá trị đơn trung bình: %s\n" +
-                               "Hoàn thành: %d\n" +
-                               "Chờ xử lý: %d\n" +
-                               "Đang pha chế: %d\n" +
-                               "Sẵn sàng: %d\n" +
-                               "Đã hủy: %d",
-                               totalOrders, vndFmt.format(totalRevenue), vndFmt.format(avgOrderValue),
-                               completedOrders, pendingOrders, preparingOrders,
-                               readyOrders, cancelledOrders);
-        }
-    }
+
+
 }

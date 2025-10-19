@@ -1,6 +1,6 @@
-import java.util.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 public class ManagementView {
     private Scanner scanner;
@@ -134,16 +134,17 @@ public class ManagementView {
     }
     
     private void viewPendingOrders() {
-        try {
-            List<Order> orders = orderDAO.getOrdersByStatus(Order.OrderStatus.PENDING);
+    try {
+        List<Order> orders = orderDAO.getOrdersByStatus(Order.OrderStatus.PENDING);
         orders.addAll(orderDAO.getOrdersByStatus(Order.OrderStatus.CONFIRMED));
         orders.addAll(orderDAO.getOrdersByStatus(Order.OrderStatus.PREPARING));
-            
-            displayOrders(orders, "Pending Orders");
-        } catch (Exception e) {
-            System.out.println("Error retrieving pending orders: " + e.getMessage());
-        }
+
+        displayOrders(orders, "Pending Orders");
+    } catch (Exception e) {
+        System.out.println("Error retrieving pending orders: " + e.getMessage());
     }
+}
+
     
     private void displayOrders(List<Order> orders, String title) {
         if (orders.isEmpty()) {
@@ -539,7 +540,7 @@ public class ManagementView {
             System.out.println("Available Tables: " + stats.getAvailableTables());
             System.out.println("Occupied Tables: " + stats.getOccupiedTables());
             System.out.println("Reserved Tables: " + stats.getReservedTables());
-            System.out.println("Out of Service: " + stats.getOutOfServiceTables());
+            //System.out.println("Out of Service: " + stats.getOutOfServiceTables());
             
             double occupancyRate = (stats.getTotalTables() > 0) ? 
                 (double) stats.getOccupiedTables() / stats.getTotalTables() * 100 : 0;
@@ -827,20 +828,21 @@ public class ManagementView {
     }
     
     private void inventoryStatistics() {
-        try {
-            IngredientDAO.IngredientStats stats = ingredientDAO.getIngredientStats();
-            
-            System.out.println("\n=== Inventory Statistics ===");
-            System.out.println("Total Ingredients: " + stats.getTotalIngredients());
-            System.out.println("Low Stock Items: " + stats.getLowStockCount());
-            System.out.println("Out of Stock Items: " + stats.getOutOfStockCount());
-            System.out.println("Expired Items: " + stats.getExpiredCount());
-            System.out.printf("Total Inventory Value: $%.2f%n", stats.getTotalInventoryValue());
-            
-        } catch (Exception e) {
-            System.out.println("Error retrieving inventory statistics: " + e.getMessage());
-        }
+    try {
+        IngredientDAO.IngredientStats stats = ingredientDAO.getIngredientStats();
+
+        System.out.println("\n=== INVENTORY STATISTICS ===");
+        System.out.println("Total Ingredients: " + stats.getTotalIngredients());
+        System.out.println("Total Stock: " + stats.getTotalStock());
+        System.out.println("Low Stock Items: " + stats.getLowStockCount());
+        System.out.println("Out of Stock Items: " + stats.getOutOfStockCount());
+        System.out.println("=============================\n");
+
+    } catch (Exception e) {
+        System.out.println("Error retrieving ingredient statistics: " + e.getMessage());
     }
+}
+
     
     private void menuManagement() {
         while (true) {
@@ -1211,19 +1213,22 @@ public class ManagementView {
     }
     
     private void customerStatistics() {
-        try {
-            CustomerDAO.CustomerStats stats = customerDAO.getCustomerStats();
-            
-            System.out.println("\n=== Customer Statistics ===");
-            System.out.println("Total Customers: " + stats.getTotalCustomers());
-            System.out.printf("Average Loyalty Points: %.2f%n", stats.getAvgLoyaltyPoints());
-            System.out.printf("Maximum Loyalty Points: %.2f%n", stats.getMaxLoyaltyPoints());
-            System.out.println("Total Loyalty Points Issued: " + stats.getTotalLoyaltyPoints());
-            
-        } catch (Exception e) {
-            System.out.println("Error retrieving customer statistics: " + e.getMessage());
-        }
+    try {
+        CustomerDAO.CustomerStats stats = customerDAO.getCustomerStats();
+
+        System.out.println("\n=== Customer Statistics ===");
+        System.out.println("Total Customers: " + stats.getTotalCustomers());
+        System.out.println("Active Customers: " + stats.getActiveCustomers());
+        System.out.println("Inactive Customers: " + stats.getInactiveCustomers());
+        System.out.println("Top Customer (by total spent): " + stats.getTopCustomerName());
+        System.out.printf("Total Customer Spending: $%.2f%n", stats.getTotalSpending());
+        System.out.println("=============================\n");
+
+    } catch (Exception e) {
+        System.out.println("Error retrieving customer statistics: " + e.getMessage());
     }
+}
+
     
     private void reportsAndAnalytics() {
         while (true) {
@@ -1231,10 +1236,11 @@ public class ManagementView {
             System.out.println("1. Daily Sales Report");
             System.out.println("2. Order Statistics");
             System.out.println("3. Payment Statistics");
-            System.out.println("4. Popular Menu Items");
-            System.out.println("5. Revenue Summary");
-            System.out.println("6. Back to Main Menu");
-            System.out.print("Choose option (1-6): ");
+            System.out.println("4. View All Payments (Invoices)");
+            System.out.println("5. Popular Menu Items");
+            System.out.println("6. Revenue Summary");
+            System.out.println("7. Back to Main Menu");
+            System.out.print("Choose option (1-7): ");
             
             int choice = getIntInput();
             
@@ -1249,12 +1255,15 @@ public class ManagementView {
                     paymentStatistics();
                     break;
                 case 4:
-                    popularMenuItems();
+                    viewAllPayments();
                     break;
                 case 5:
-                    revenueSummary();
+                    popularMenuItems();
                     break;
                 case 6:
+                    revenueSummary();
+                    break;
+                case 7:
                     return;
                 default:
                     System.out.println("Invalid choice. Please try again.");
@@ -1314,20 +1323,84 @@ public class ManagementView {
     }
     
     private void paymentStatistics() {
+    try {
+        PaymentDAO.PaymentStats stats = paymentDAO.getPaymentStats();
+        
+        System.out.println("\n=== Payment Statistics ===");
+        System.out.println("Total Payments: " + stats.getTotalPayments());
+        System.out.println("Completed Payments: " + stats.getCompletedPayments());
+        System.out.println("Cancelled Payments: " + stats.getCancelledPayments());
+        System.out.printf("Total Revenue: $%.2f%n", stats.getTotalRevenue());
+        System.out.printf("Average Payment Amount: $%.2f%n", stats.getAvgPaymentAmount());
+        
+    } catch (Exception e) {
+        System.out.println("Error retrieving payment statistics: " + e.getMessage());
+    }
+}
+
+    private void viewAllPayments() {
         try {
-            PaymentDAO.PaymentStats stats = paymentDAO.getPaymentStats();
+            List<Payment> payments = paymentDAO.getAllPayments();
             
-            System.out.println("\n=== Payment Statistics ===");
-            System.out.println("Total Payments: " + stats.getTotalPayments());
-            System.out.println("Completed Payments: " + stats.getCompletedPayments());
-            System.out.println("Cancelled Payments: " + stats.getCancelledPayments());
-            System.out.printf("Total Revenue: $%.2f%n", stats.getTotalRevenue());
-            System.out.printf("Average Payment Amount: $%.2f%n", stats.getAvgPaymentAmount());
+            if (payments.isEmpty()) {
+                System.out.println("\nNo payments found.");
+                return;
+            }
+            
+            System.out.println("\n=== All Payment Invoices ===");
+            System.out.printf("%-10s %-8s %-15s %-12s %-10s %-12s %-15s%n", 
+                "Payment ID", "Order ID", "Payment Method", "Amount", "Status", "Date", "Customer");
+            System.out.println("-".repeat(100));
+            
+            for (Payment payment : payments) {
+                try {
+                    // Get order details
+                    Order order = orderDAO.getOrderById(payment.getOrderId());
+                    String customerName = "Unknown";
+                    if (order != null) {
+                        Customer customer = customerDAO.getCustomerById(order.getCustomerId());
+                        if (customer != null) {
+                            customerName = customer.getName();
+                        }
+                    }
+                    
+                    String paymentDate = "N/A";
+                    if (payment.getPaymentTime() != null) {
+                        paymentDate = payment.getPaymentTime().format(DateTimeFormatter.ofPattern("MM/dd HH:mm"));
+                    }
+                    
+                    System.out.printf("%-10d %-8d %-15s $%-11.2f %-10s %-12s %-15s%n",
+                        payment.getPaymentId(),
+                        payment.getOrderId(),
+                        payment.getPaymentMethod(),
+                        payment.getAmount(),
+                        payment.getStatus(),
+                        paymentDate,
+                        customerName);
+                        
+                } catch (Exception e) {
+                    System.out.println("Error displaying payment " + payment.getPaymentId() + ": " + e.getMessage());
+                }
+            }
+            
+            // Show summary
+            System.out.println("\n=== Payment Summary ===");
+            double totalAmount = payments.stream().mapToDouble(Payment::getAmount).sum();
+            long completedCount = payments.stream().filter(p -> p.getStatus().equals("COMPLETED")).count();
+            long pendingCount = payments.stream().filter(p -> p.getStatus().equals("PENDING")).count();
+            long cancelledCount = payments.stream().filter(p -> p.getStatus().equals("CANCELLED")).count();
+            
+            System.out.printf("Total Payments: %d%n", payments.size());
+            System.out.printf("Completed: %d%n", completedCount);
+            System.out.printf("Pending: %d%n", pendingCount);
+            System.out.printf("Cancelled: %d%n", cancelledCount);
+            System.out.printf("Total Amount: $%.2f%n", totalAmount);
             
         } catch (Exception e) {
-            System.out.println("Error retrieving payment statistics: " + e.getMessage());
+            System.out.println("Error retrieving payments: " + e.getMessage());
         }
     }
+
     
     private void popularMenuItems() {
         try {

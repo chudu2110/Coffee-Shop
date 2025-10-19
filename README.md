@@ -1,6 +1,6 @@
 # Coffee Shop Management System
 
-A comprehensive Java-based coffee shop management system implementing Object-Oriented Programming principles with SQLite database integration.
+A comprehensive Java-based coffee shop management system implementing Object-Oriented Programming principles with SQLite/MySQL database integration.
 
 ## Features
 
@@ -50,6 +50,7 @@ The system follows Object-Oriented Programming principles with the following key
 
 - **Java Development Kit (JDK) 8 or higher**
 - **SQLite JDBC Driver** (included in the project)
+- (Optional) **MySQL Connector/J** if using MySQL
 - **SLF4J Logging Framework** (included in the project)
 
 ## Installation & Setup
@@ -73,15 +74,18 @@ javac -cp . *.java
 
 ### 4. Run the Application (Console main)
 ```bash
-java -cp ".;sqlite-jdbc.jar;slf4j-api.jar;slf4j-simple.jar" CoffeeShopApp
+java -cp ".;sqlite-jdbc.jar;slf4j-api.jar;slf4j-simple.jar;mysql-connector-j-9.0.0.jar" CoffeeShopApp
 ```
 
 **Note for Linux/Mac users**: Use colon (`:`) instead of semicolon (`;`) as classpath separator:
 ```bash
-java -cp ".:sqlite-jdbc.jar:slf4j-api.jar:slf4j-simple.jar" CoffeeShopApp
+java -cp ".:sqlite-jdbc.jar:slf4j-api.jar:slf4j-simple.jar:mysql-connector-j-9.0.0.jar" CoffeeShopApp
 ```
+javac -cp ".;mysql-connector-j-9.4.0.jar" *.java
+java -cp ".;mysql-connector-j-9.4.0.jar;." CoffeeShopSwingApp
 
-<<<<<<< HEAD
+
+
 ## Desktop Frontend
 
 Two minimal UIs are provided:
@@ -106,13 +110,34 @@ javac --module-path $env:PATH_TO_FX -cp .;sqlite-jdbc.jar;slf4j-api.jar;slf4j-si
 java  --module-path $env:PATH_TO_FX -cp .;sqlite-jdbc.jar;slf4j-api.jar;slf4j-simple.jar --add-modules javafx.controls CoffeeShopFXApp
 ```
 
-The app will create `coffee_shop.db` in the project folder on first run and seed sample data.
-=======
-### 5. Database Initialization
-- The application will automatically create `coffee_shop.db` on first run
-- Sample menu items, customers, and tables will be populated
-- No manual database setup required
->>>>>>> e4b9636a5da782d6e88d5c80456e694d015876fa
+The app will create `coffee_shop.db` in the project folder on first run and seed sample data (SQLite). For MySQL, see Database Configuration below.
+### 5. Database Configuration
+
+Create a `db.properties` file in the project root to select database:
+
+```
+# db.type can be sqlite or mysql
+db.type=sqlite
+
+# SQLite options
+db.sqlite.path=coffee_shop.db
+# Or override full URL
+# db.url=jdbc:sqlite:coffee_shop.db
+
+# MySQL options (only used when db.type=mysql)
+db.host=localhost
+db.port=3306
+db.name=coffee_shop
+db.user=root
+db.password=
+# Optional JDBC params
+db.params=useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf8
+```
+
+#### Schema management
+
+- SQLite: the app auto-creates tables, migrates VND pricing, and seeds sample data on first run.
+- MySQL: apply `database_schema.sql` manually to your MySQL database. The app will not auto-create schema for MySQL.
 
 ## Usage Guide
 

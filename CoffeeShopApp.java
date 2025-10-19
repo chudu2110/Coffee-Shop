@@ -94,7 +94,8 @@ public class CoffeeShopApp {
             databaseConnection = DatabaseConnection.getInstance();
             
             // Initialize database schema and sample data
-            databaseConnection.initializeDatabase();
+            DatabaseConnection.createTables();
+            DatabaseConnection.insertSampleData();
             
             System.out.println("Database initialized successfully!");
             return true;
@@ -142,7 +143,7 @@ public class CoffeeShopApp {
         System.out.println("\nApplication: Coffee Shop Management System");
         System.out.println("Version: 1.0.0");
         System.out.println("Language: Java (Pure OOP Implementation)");
-        System.out.println("Database: SQLite");
+        System.out.println("Database: MySQL");
         System.out.println("\nFeatures:");
         System.out.println("  ✓ Customer ordering system with menu selection");
         System.out.println("  ✓ Payment processing (Cash, Card, Mobile, Loyalty Points)");
@@ -198,8 +199,9 @@ public class CoffeeShopApp {
             System.out.println("\nDatabase Status:");
             if (databaseConnection != null) {
                 System.out.println("  Connection: Active");
-                System.out.println("  Database Type: SQLite");
-                System.out.println("  Database File: coffee_shop.db");
+                System.out.println("  Database Type: MySQL");
+                System.out.println("  Database Name: coffee_shop");
+                System.out.println("  Host: localhost:3306");
             } else {
                 System.out.println("  Connection: Not initialized");
             }
@@ -236,7 +238,7 @@ public class CoffeeShopApp {
             }
             
             if (databaseConnection != null) {
-                databaseConnection.closeConnection();
+                DatabaseConnection.closeConnection();
             }
             
             if (scanner != null) {

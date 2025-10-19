@@ -2,8 +2,8 @@
 -- This file contains the SQL schema for the coffee shop application
 
 -- Create database (uncomment if needed)
--- CREATE DATABASE coffee_shop;
--- USE coffee_shop;
+CREATE DATABASE coffee_shop;
+USE coffee_shop;
 
 -- Table for menu items
 CREATE TABLE menu_items (
@@ -143,6 +143,7 @@ CREATE INDEX idx_menu_items_is_available ON menu_items(is_available);
 
 -- Sample menu items
 INSERT INTO menu_items (name, description, base_price, category, item_type, coffee_type, is_available) VALUES
+-- Coffee Drinks
 ('Espresso', 'Espresso đậm vị', 25000, 'Coffee', 'Coffee', 'ESPRESSO', TRUE),
 ('Americano', 'Espresso pha với nước nóng', 30000, 'Coffee', 'Coffee', 'AMERICANO', TRUE),
 ('Latte', 'Espresso với sữa tươi hấp', 45000, 'Coffee', 'Coffee', 'LATTE', TRUE),
@@ -150,9 +151,35 @@ INSERT INTO menu_items (name, description, base_price, category, item_type, coff
 ('Macchiato', 'Espresso với một lớp sữa', 42500, 'Coffee', 'Coffee', 'MACCHIATO', TRUE),
 ('Mocha', 'Espresso với sô-cô-la và sữa', 50000, 'Coffee', 'Coffee', 'MOCHA', TRUE),
 ('Frappuccino', 'Cà phê xay đá', 55000, 'Coffee', 'Coffee', 'FRAPPUCCINO', TRUE),
+('Cà phê sữa đá', 'Cà phê pha với sữa đặc', 25000, 'Coffee', 'Coffee', 'VIETNAMESE', TRUE),
+('Cà phê đen đá', 'Cà phê rang xay nguyên chất', 20000, 'Coffee', 'Coffee', 'VIETNAMESE', TRUE),
+('Cà phê sữa nóng', 'Cà phê sữa ấm nóng', 25000, 'Coffee', 'Coffee', 'VIETNAMESE', TRUE),
+
+-- Tea Drinks
+('Trà đào cam sả', 'Trà đào với cam sả tươi', 35000, 'Tea', 'Drink', NULL, TRUE),
+('Trà sữa trân châu', 'Trà sữa với trân châu đen', 40000, 'Tea', 'Drink', NULL, TRUE),
+('Trà xanh matcha', 'Trà xanh matcha Nhật Bản', 45000, 'Tea', 'Drink', NULL, TRUE),
+('Trà hoa cúc', 'Trà hoa cúc thảo mộc', 30000, 'Tea', 'Drink', NULL, TRUE),
+
+-- Pastry & Food
 ('Croissant', 'Bánh sừng bò bơ', 35000, 'Pastry', 'Food', NULL, TRUE),
 ('Muffin', 'Bánh muffin mới nướng', 27500, 'Pastry', 'Food', NULL, TRUE),
-('Sandwich', 'Bánh mì kẹp nướng', 65000, 'Food', 'Food', NULL, TRUE);
+('Sandwich', 'Bánh mì kẹp nướng', 65000, 'Food', 'Food', NULL, TRUE),
+('Bánh mì pate', 'Bánh mì pate truyền thống', 25000, 'Food', 'Food', NULL, TRUE),
+('Bánh mì thịt nướng', 'Bánh mì thịt nướng BBQ', 45000, 'Food', 'Food', NULL, TRUE),
+('Pizza mini', 'Pizza mini 4 mùa', 80000, 'Food', 'Food', NULL, TRUE),
+
+-- Desserts
+('Tiramisu', 'Bánh tiramisu Ý', 55000, 'Dessert', 'Food', NULL, TRUE),
+('Cheesecake', 'Bánh cheesecake New York', 60000, 'Dessert', 'Food', NULL, TRUE),
+('Brownie', 'Bánh brownie sô-cô-la', 35000, 'Dessert', 'Food', NULL, TRUE),
+('Ice cream', 'Kem tươi 3 vị', 25000, 'Dessert', 'Food', NULL, TRUE),
+
+-- Smoothies & Juices
+('Smoothie dâu', 'Sinh tố dâu tây tươi', 40000, 'Smoothie', 'Drink', NULL, TRUE),
+('Smoothie xoài', 'Sinh tố xoài nhiệt đới', 35000, 'Smoothie', 'Drink', NULL, TRUE),
+('Nước cam tươi', 'Nước cam vắt tươi', 30000, 'Juice', 'Drink', NULL, TRUE),
+('Nước chanh dây', 'Nước chanh dây mát lạnh', 25000, 'Juice', 'Drink', NULL, TRUE);
 
 -- Sample customers
 INSERT INTO customers (name, email, phone_number, loyalty_points) VALUES

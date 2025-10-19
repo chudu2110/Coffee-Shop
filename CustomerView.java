@@ -1,5 +1,4 @@
 import java.util.*;
-import java.time.LocalDateTime;
 
 public class CustomerView {
     private Scanner scanner;
@@ -85,7 +84,7 @@ public class CustomerView {
         String phone = scanner.nextLine().trim();
         
         try {
-            if (customerDAO.emailExists(email)) {
+            if (customerDAO.getCustomerByEmail(email) != null) {
                 System.out.println("Email already exists. Please login instead.");
                 loginCustomer();
                 return;
@@ -177,7 +176,7 @@ public class CustomerView {
     
     private void selectTable() {
         try {
-            List<Table> availableTables = tableDAO.getAvailableTables();
+            List<Table> availableTables = tableDAO.getAllTables();
             
             if (availableTables.isEmpty()) {
                   System.out.println("No tables available. Switching to take-away.");
@@ -478,7 +477,7 @@ public class CustomerView {
             
             // Update order status
             currentOrder.setStatus(Order.OrderStatus.CONFIRMED);
-            orderDAO.updateOrderStatus(orderId, currentOrder.getStatus());
+            //orderDAO.crea(orderId, currentOrder.getStatus());
             
             // Update customer loyalty points and order history
             if (currentCustomer.getCustomerId() > 0) {
@@ -530,7 +529,7 @@ public class CustomerView {
         }
         
         try {
-            List<Order> orders = orderDAO.getOrdersByCustomerId(currentCustomer.getCustomerId());
+            List<Order> orders = orderDAO.getOrdersByCustomerId(getIntInput());
             
             if (orders.isEmpty()) {
                 System.out.println("No previous orders found.");

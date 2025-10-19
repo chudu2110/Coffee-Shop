@@ -1,9 +1,8 @@
-import javax.swing.*;
-import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.List;
-import java.util.Locale;
+import javax.swing.*;
+import javax.swing.border.*;
 
 public class CoffeeShopSwingApp extends JFrame {
     private final MenuItemDAO menuItemDAO = new MenuItemDAO();
@@ -16,22 +15,19 @@ public class CoffeeShopSwingApp extends JFrame {
     private final JLabel totalLabel = new JLabel();
     private final JSpinner qtySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 20, 1));
 
-    // 💵 Định dạng tiền Việt Nam
-    // Hiển thị tiền Việt đơn giản (không định dạng), ví dụ: 45000đ
     private String toVND(double amount) {
         long vnd = Math.round(amount);
         return vnd + "đ";
     }
 
     public CoffeeShopSwingApp() {
-        super("☕ Coffee Shop - Giao diện Việt Nam");
-        DatabaseConnection.getInstance().initializeDatabase();
+        super("Coffee Shop - Nhóm 6 OOP");
+        DatabaseConnection.getInstance().createTables();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(850, 580);
         setLocationRelativeTo(null);
         setResizable(false);
 
-        // 🌿 Giao diện tổng thể
         UIManager.put("Panel.background", new Color(250, 247, 242));
         UIManager.put("Button.font", new Font("Segoe UI", Font.PLAIN, 14));
         UIManager.put("Label.font", new Font("Segoe UI", Font.PLAIN, 14));
@@ -41,7 +37,7 @@ public class CoffeeShopSwingApp extends JFrame {
 		setContentPane(root);
 		setJMenuBar(createMenuBar());
 
-        JLabel title = new JLabel("☕ Ứng dụng quản lý quán cà phê");
+        JLabel title = new JLabel("Ứng dụng quản lý quán cà phê");
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
         title.setForeground(new Color(85, 45, 25));
         root.add(title, BorderLayout.NORTH);
@@ -60,7 +56,9 @@ public class CoffeeShopSwingApp extends JFrame {
         JPanel catPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         catPanel.add(new JLabel("Danh mục:"));
         categoryCombo.addItem("Tất cả");
-        for (String c : menuItemDAO.getCategories()) categoryCombo.addItem(c);
+		for (String c : menuItemDAO.getAllCategories())
+			categoryCombo.addItem(c);
+
         categoryCombo.addActionListener(e -> loadMenu());
         catPanel.add(categoryCombo);
         left.add(catPanel, BorderLayout.NORTH);
@@ -74,7 +72,7 @@ public class CoffeeShopSwingApp extends JFrame {
                 Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof MenuItem) {
                     MenuItem mi = (MenuItem) value;
-                    // 💰 Hiển thị giá VNĐ đơn giản
+                    //  Hiển thị giá VNĐ đơn giản
                     setText(mi.getName() + " — " + toVND(mi.getPrice()));
                 }
                 return c;
@@ -86,13 +84,13 @@ public class CoffeeShopSwingApp extends JFrame {
         controls.add(new JLabel("Số lượng:"));
         controls.add(qtySpinner);
 
-        JButton addBtn = createStyledButton("➕ Thêm vào giỏ", new Color(100, 150, 100));
+        JButton addBtn = createStyledButton("Thêm vào giỏ", new Color(100, 150, 100));
         addBtn.addActionListener(e -> onAdd());
-        JButton clearBtn = createStyledButton("🗑 Xóa giỏ", new Color(200, 100, 100));
+        JButton clearBtn = createStyledButton("Xóa giỏ", new Color(200, 100, 100));
         clearBtn.addActionListener(e -> { currentOrder.clearOrder(); updateOrderArea(); });
-        JButton checkoutBtn = createStyledButton("💳 Thanh toán", new Color(85, 130, 180));
+        JButton checkoutBtn = createStyledButton("Thanh toán", new Color(85, 130, 180));
         checkoutBtn.addActionListener(e -> onCheckout());
-		JButton historyBtn = createStyledButton("📜 Lịch sử đơn", new Color(140, 120, 160));
+		JButton historyBtn = createStyledButton("Lịch sử đơn", new Color(140, 120, 160));
 		historyBtn.addActionListener(e -> showOrderHistory());
 
         controls.add(addBtn);
@@ -124,11 +122,10 @@ public class CoffeeShopSwingApp extends JFrame {
 
         center.add(right);
 
-		// Bottom action bar: always visible Checkout + History
 		JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 6));
-		JButton bottomCheckout = createStyledButton("💳 Thanh toán", new Color(85, 130, 180));
+		JButton bottomCheckout = createStyledButton("Thanh toán", new Color(85, 130, 180));
 		bottomCheckout.addActionListener(e -> onCheckout());
-		JButton bottomHistory = createStyledButton("📜 Lịch sử đơn", new Color(140, 120, 160));
+		JButton bottomHistory = createStyledButton("Lịch sử đơn", new Color(140, 120, 160));
 		bottomHistory.addActionListener(e -> showOrderHistory());
 		bottomBar.add(bottomHistory);
 		bottomBar.add(bottomCheckout);
@@ -288,7 +285,14 @@ public class CoffeeShopSwingApp extends JFrame {
 					"Thanh toán thành công cho đơn #" + orderId +
 					"\nSố tiền: " + toVND(total));
 				// Cập nhật trạng thái đơn
-				orderDAO.updateOrderStatus(orderId, Order.OrderStatus.COMPLETED);
+				//orderDAO.createOrder(currentOrder) /*(orderId, Order.OrderStatus.COMPLETED)*/;
+                // Trừ kho và cập nhật trạng thái món
+                // boolean deducted = menuItemDAO.deductStockForOrder(currentOrder.getOrderItems());
+                // if (!deducted) {
+                //     System.err.println("Cảnh báo: Không thể trừ kho sau thanh toán");
+                // }
+                // Refresh menu nếu có món trở thành hết hàng
+                loadMenu();
 				currentOrder.clearOrder();
 				updateOrderArea();
 			} else {
