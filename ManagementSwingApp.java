@@ -379,7 +379,7 @@ public class ManagementSwingApp extends JFrame {
         footer.setBackground(new Color(70, 130, 180));
         footer.setBorder(new EmptyBorder(10, 20, 10, 20));
         
-        JLabel footerLabel = new JLabel("© 2024 Coffee Shop Management System - Admin Panel");
+        JLabel footerLabel = new JLabel("© 2025 Coffee Shop Management System - Admin Panel");
         footerLabel.setForeground(Color.WHITE);
         footerLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         

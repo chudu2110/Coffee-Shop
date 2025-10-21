@@ -231,7 +231,7 @@ public class MainMenuSwing extends JFrame {
         footer.setOpaque(false);
         footer.setBorder(new EmptyBorder(20, 20, 30, 20));
         
-        JLabel footerLabel = new JLabel("© 2024 Coffee Shop Management System - Nhóm 6 OOP");
+        JLabel footerLabel = new JLabel("© 2025 Coffee Shop Management System - Nhóm 6 OOP");
         footerLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         footerLabel.setForeground(new Color(255, 255, 255, 180));
         
