@@ -81,6 +81,10 @@ java -cp ".;sqlite-jdbc.jar;slf4j-api.jar;slf4j-simple.jar;mysql-connector-j-9.0
 ```bash
 java -cp ".:sqlite-jdbc.jar:slf4j-api.jar:slf4j-simple.jar:mysql-connector-j-9.0.0.jar" CoffeeShopApp
 ```
+<<<<<<< HEAD
+=======
+**Running prompt**
+>>>>>>> c3569a64ba91b1d5f2d4109cc7d152b47514d6a0
 java -cp ".;sqlite-jdbc.jar;slf4j-api.jar;slf4j-simple.jar;mysql-connector-j-9.4.0.jar" MainMenuSwing
 
 
