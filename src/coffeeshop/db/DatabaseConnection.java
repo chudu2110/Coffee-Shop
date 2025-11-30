@@ -213,26 +213,11 @@ public class DatabaseConnection {
                     ") ENGINE=InnoDB;"
                 );
                 stmt.executeUpdate(
-                    "CREATE TABLE IF NOT EXISTS tables (" +
-                    "  table_number INT PRIMARY KEY," +
-                    "  capacity INT NOT NULL," +
-                    "  status VARCHAR(20) DEFAULT 'AVAILABLE'," +
-                    "  current_customer_id INT NULL," +
-                    "  occupied_since TIMESTAMP NULL," +
-                    "  reserved_until TIMESTAMP NULL," +
-                    "  notes TEXT," +
-                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-                    "  CONSTRAINT fk_tables_customer FOREIGN KEY (current_customer_id) REFERENCES customers(customer_id)" +
-                    ") ENGINE=InnoDB;"
-                );
-                stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS orders (" +
                     "  order_id INT AUTO_INCREMENT PRIMARY KEY," +
                     "  customer_id INT NOT NULL," +
                     "  status VARCHAR(20) DEFAULT 'PENDING'," +
                     "  service_type VARCHAR(20) NOT NULL," +
-                    "  table_number INT NULL," +
                     "  subtotal DECIMAL(10,3) NOT NULL," +
                     "  tax DECIMAL(10,3) NOT NULL," +
                     "  discount DECIMAL(10,3) DEFAULT 0.00," +
@@ -242,8 +227,7 @@ public class DatabaseConnection {
                     "  completion_time TIMESTAMP NULL," +
                     "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
                     "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-                    "  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)," +
-                    "  CONSTRAINT fk_orders_table FOREIGN KEY (table_number) REFERENCES tables(table_number)" +
+                    "  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)" +
                     ") ENGINE=InnoDB;"
                 );
                 stmt.executeUpdate(
@@ -397,18 +381,7 @@ public class DatabaseConnection {
             "('Charlie Wilson','charlie.wilson@email.com','0905456789',33.50)"
         );
 
-        // Sample tables
-        stmt.executeUpdate(
-            "INSERT IGNORE INTO tables (table_number, capacity, status) VALUES " +
-            "(1, 2, 'AVAILABLE')," +
-            "(2, 4, 'AVAILABLE')," +
-            "(3, 2, 'AVAILABLE')," +
-            "(4, 6, 'AVAILABLE')," +
-            "(5, 4, 'AVAILABLE')," +
-            "(6, 2, 'AVAILABLE')," +
-            "(7, 4, 'AVAILABLE')," +
-            "(8, 8, 'AVAILABLE')"
-        );
+        
 
         // Sample ingredients
         stmt.executeUpdate(

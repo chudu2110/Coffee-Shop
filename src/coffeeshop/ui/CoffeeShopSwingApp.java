@@ -545,7 +545,7 @@ public class CoffeeShopSwingApp extends JFrame {
         dialog.setLayout(new BorderLayout(10, 10));
         ((JComponent) dialog.getContentPane()).setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        String[] cols = { "Mã đơn", "Khách", "Loại", "Bàn", "Tổng", "Trạng thái", "Thời gian" };
+        String[] cols = { "Mã đơn", "Khách", "Loại", "Tổng", "Trạng thái", "Thời gian" };
         javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(cols, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -561,7 +561,6 @@ public class CoffeeShopSwingApp extends JFrame {
                 o.getOrderId(),
                 c != null ? c.getName() : "N/A",
                 o.getServiceType(),
-                o.getTableNumber() > 0 ? o.getTableNumber() : "-",
                 toVND(o.getTotalAmount()),
                 o.getStatus(),
                 o.getOrderTime().toString()

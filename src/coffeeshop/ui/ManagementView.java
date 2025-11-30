@@ -1,8 +1,8 @@
 package coffeeshop.ui;
 
 import coffeeshop.dao.*;
-import coffeeshop.model.*;
 import coffeeshop.db.DatabaseConnection;
+import coffeeshop.model.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -12,7 +12,6 @@ public class ManagementView {
     private MenuItemDAO menuItemDAO;
     private CustomerDAO customerDAO;
     private OrderDAO orderDAO;
-    private TableDAO tableDAO;
     private PaymentDAO paymentDAO;
     private IngredientDAO ingredientDAO;
     
@@ -21,17 +20,75 @@ public class ManagementView {
         this.menuItemDAO = new MenuItemDAO();
         this.customerDAO = new CustomerDAO();
         this.orderDAO = new OrderDAO();
-        this.tableDAO = new TableDAO();
         this.paymentDAO = new PaymentDAO();
         this.ingredientDAO = new IngredientDAO();
     }
-    
+
+    private void itemManagement() {
+        while (true) {
+            System.out.println("\n=== Items ===");
+            System.out.println("1. View Order Items by Order ID");
+            System.out.println("2. Back to Main Menu");
+            System.out.print("Choose option (1-2): ");
+
+            int choice = getIntInput();
+
+            switch (choice) {
+                case 1:
+                    viewOrderItemsByOrderId();
+                    break;
+                case 2:
+                    return;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
+        }
+    }
+
+    private void viewOrderItemsByOrderId() {
+        System.out.print("Enter Order ID: ");
+        int orderId = getIntInput();
+
+        try {
+            Order order = orderDAO.getOrderById(orderId);
+            if (order == null) {
+                System.out.println("Order not found.");
+                return;
+            }
+
+            List<OrderItem> items = orderDAO.getOrderItems(orderId);
+            displayOrderItems(items, orderId);
+        } catch (Exception e) {
+            System.out.println("Error retrieving order items: " + e.getMessage());
+        }
+    }
+
+    private void displayOrderItems(List<OrderItem> items, int orderId) {
+        System.out.println("\n=== Order Items for Order #" + orderId + " ===");
+        if (items == null || items.isEmpty()) {
+            System.out.println("No items found.");
+            return;
+        }
+        System.out.printf("%-25s %-6s %-12s %-12s %-30s%n", 
+            "Item", "Qty", "Unit Price", "Line Total", "Customizations");
+        System.out.println("-".repeat(95));
+
+        for (OrderItem oi : items) {
+            System.out.printf("%-25s %-6d %-12.2f %-12.2f %-30s%n",
+                oi.getMenuItem().getName(),
+                oi.getQuantity(),
+                oi.getUnitPrice(),
+                oi.getItemTotal(),
+                oi.getCustomizations());
+        }
+    }
+
     public void start() {
-        System.out.println("\n=== Coffee Shop Management System ===");
+        System.out.println("\n=== Chào mừng! ===");
         
         // Simple authentication
         if (!authenticate()) {
-            System.out.println("Access denied.");
+            System.out.println("Mật khẩu chưa đúng, vui lòng thử lại.");
             return;
         }
         
@@ -39,7 +96,7 @@ public class ManagementView {
     }
     
     private boolean authenticate() {
-        System.out.print("Enter management password: ");
+        System.out.print("Vui lòng nhập mật khẩu quản trị: ");
         String password = scanner.nextLine().trim();
         
         // Simple password check (in real application, use proper authentication)
@@ -50,7 +107,7 @@ public class ManagementView {
         while (true) {
             System.out.println("\n=== Management Dashboard ===");
             System.out.println("1. Order Management");
-            System.out.println("2. Table Management");
+            System.out.println("2. Items");
             System.out.println("3. Inventory Management");
             System.out.println("4. Menu Management");
             System.out.println("5. Customer Management");
@@ -66,7 +123,7 @@ public class ManagementView {
                     orderManagement();
                     break;
                 case 2:
-                    tableManagement();
+                    itemManagement();
                     break;
                 case 3:
                     inventoryManagement();
@@ -158,21 +215,18 @@ public class ManagementView {
         }
         
         System.out.println("\n=== " + title + " ===");
-        System.out.printf("%-8s %-12s %-15s %-8s %-10s %-12s %-15s%n", 
-            "Order ID", "Customer", "Service Type", "Table", "Total", "Status", "Date");
+        System.out.printf("%-8s %-12s %-15s %-10s %-12s %-15s%n", 
+            "Order ID", "Customer", "Service Type", "Total", "Status", "Date");
         System.out.println("-".repeat(90));
         
         for (Order order : orders) {
             try {
                 Customer customer = customerDAO.getCustomerById(order.getCustomerId());
                 String customerName = (customer != null) ? customer.getName() : "Unknown";
-                String tableInfo = (order.getTableNumber() > 0) ? String.valueOf(order.getTableNumber()) : "N/A";
-                
-                System.out.printf("%-8d %-12s %-15s %-8s $%-9.2f %-12s %-15s%n",
+                System.out.printf("%-8d %-12s %-15s $%-9.2f %-12s %-15s%n",
                     order.getOrderId(),
                     customerName,
                     order.getServiceType(),
-                    tableInfo,
                     order.getTotalAmount(),
                     order.getStatus(),
                     order.getOrderTime().format(DateTimeFormatter.ofPattern("MM/dd HH:mm")));
@@ -221,18 +275,7 @@ public class ManagementView {
             order.setStatus(newStatus);
             orderDAO.updateOrderStatus(orderId, order.getStatus());
             
-            // If order is completed and it's dine-in, free the table
-            if (newStatus == Order.OrderStatus.COMPLETED && 
-                order.getServiceType() == Order.ServiceType.DINE_IN && 
-                order.getTableNumber() > 0) {
-                
-                Table table = tableDAO.getTableById(order.getTableNumber());
-                if (table != null) {
-                    table.makeAvailable();
-                    tableDAO.updateTableStatus(table.getTableNumber(), table.getStatus());
-                    System.out.println("Table " + order.getTableNumber() + " has been freed.");
-                }
-            }
+            
             
             System.out.println("Order status updated to: " + newStatus);
             
@@ -325,14 +368,7 @@ public class ManagementView {
             order.setStatus(Order.OrderStatus.CANCELLED);
             orderDAO.updateOrderStatus(orderId, order.getStatus());
             
-            // Free table if it was dine-in
-            if (order.getServiceType() == Order.ServiceType.DINE_IN && order.getTableNumber() > 0) {
-                Table table = tableDAO.getTableById(order.getTableNumber());
-                if (table != null) {
-                    table.makeAvailable();
-                    tableDAO.updateTableStatus(table.getTableNumber(), table.getStatus());
-                }
-            }
+            
             
             System.out.println("Order " + orderId + " has been cancelled.");
             
@@ -341,220 +377,7 @@ public class ManagementView {
         }
     }
     
-    private void tableManagement() {
-        while (true) {
-            System.out.println("\n=== Table Management ===");
-            System.out.println("1. View All Tables");
-            System.out.println("2. View Available Tables");
-            System.out.println("3. View Occupied Tables");
-            System.out.println("4. Add New Table");
-            System.out.println("5. Update Table Status");
-            System.out.println("6. Remove Table");
-            System.out.println("7. Table Statistics");
-            System.out.println("8. Back to Main Menu");
-            System.out.print("Choose option (1-8): ");
-            
-            int choice = getIntInput();
-            
-            switch (choice) {
-                case 1:
-                    viewAllTables();
-                    break;
-                case 2:
-                    viewAvailableTables();
-                    break;
-                case 3:
-                    viewOccupiedTables();
-                    break;
-                case 4:
-                    addNewTable();
-                    break;
-                case 5:
-                    updateTableStatus();
-                    break;
-                case 6:
-                    removeTable();
-                    break;
-                case 7:
-                    tableStatistics();
-                    break;
-                case 8:
-                    return;
-                default:
-                    System.out.println("Invalid choice. Please try again.");
-            }
-        }
-    }
     
-    private void viewAllTables() {
-        try {
-            List<Table> tables = tableDAO.getAllTables();
-            displayTables(tables, "All Tables");
-        } catch (Exception e) {
-            System.out.println("Error retrieving tables: " + e.getMessage());
-        }
-    }
-    
-    private void viewAvailableTables() {
-        try {
-            List<Table> tables = tableDAO.getAvailableTables();
-            displayTables(tables, "Available Tables");
-        } catch (Exception e) {
-            System.out.println("Error retrieving available tables: " + e.getMessage());
-        }
-    }
-    
-    private void viewOccupiedTables() {
-        try {
-            List<Table> tables = tableDAO.getTablesByStatus(Table.TableStatus.OCCUPIED);
-            displayTables(tables, "Occupied Tables");
-        } catch (Exception e) {
-            System.out.println("Error retrieving occupied tables: " + e.getMessage());
-        }
-    }
-    
-    private void displayTables(List<Table> tables, String title) {
-        if (tables.isEmpty()) {
-            System.out.println("\nNo tables found.");
-            return;
-        }
-        
-        System.out.println("\n=== " + title + " ===");
-        System.out.printf("%-8s %-10s %-12s %-15s%n", "Table #", "Capacity", "Status", "Last Updated");
-        System.out.println("-".repeat(50));
-        
-        for (Table table : tables) {
-            System.out.printf("%-8d %-10d %-12s %-15s%n",
-                table.getTableNumber(),
-                table.getCapacity(),
-                table.getStatus(),
-                "N/A"); // Last updated not available
-        }
-    }
-    
-    private void addNewTable() {
-        System.out.print("Enter table number: ");
-        int tableNumber = getIntInput();
-        
-        System.out.print("Enter table capacity: ");
-        int capacity = getIntInput();
-        
-        try {
-            Table existingTable = tableDAO.getTableById(tableNumber);
-            if (existingTable != null) {
-                System.out.println("Table number already exists.");
-                return;
-            }
-            
-            Table newTable = new Table(tableNumber, capacity);
-            tableDAO.createTable(newTable);
-            
-            System.out.println("Table " + tableNumber + " added successfully.");
-            
-        } catch (Exception e) {
-            System.out.println("Error adding table: " + e.getMessage());
-        }
-    }
-    
-    private void updateTableStatus() {
-        System.out.print("Enter table number: ");
-        int tableNumber = getIntInput();
-        
-        try {
-            Table table = tableDAO.getTableById(tableNumber);
-            if (table == null) {
-                System.out.println("Table not found.");
-                return;
-            }
-            
-            System.out.println("\nCurrent Status: " + table.getStatus());
-            System.out.println("\nAvailable Statuses:");
-            System.out.println("1. AVAILABLE");
-            System.out.println("2. OCCUPIED");
-            System.out.println("3. RESERVED");
-            System.out.println("4. OUT_OF_SERVICE");
-            
-            System.out.print("Choose new status (1-4): ");
-            int statusChoice = getIntInput();
-            
-            switch (statusChoice) {
-                case 1:
-                    table.makeAvailable();
-                    break;
-                case 2:
-                    table.occupyTable(1); // Default customer ID
-                    break;
-                case 3:
-                    table.reserveTable(java.time.LocalDateTime.now().plusHours(1));
-                    break;
-                case 4:
-                    table.setOutOfService("Manual update");
-                    break;
-                default:
-                    System.out.println("Invalid choice.");
-                    return;
-            }
-            
-            tableDAO.updateTableStatus(table.getTableNumber(), table.getStatus());
-            System.out.println("Table status updated to: " + table.getStatus());
-            
-        } catch (Exception e) {
-            System.out.println("Error updating table status: " + e.getMessage());
-        }
-    }
-    
-    private void removeTable() {
-        System.out.print("Enter table number to remove: ");
-        int tableNumber = getIntInput();
-        
-        try {
-            Table table = tableDAO.getTableById(tableNumber);
-            if (table == null) {
-                System.out.println("Table not found.");
-                return;
-            }
-            
-            // Check if table has active orders
-            // Check if table has active orders (simplified check)
-            if (false) { // Placeholder - would need proper implementation
-                System.out.println("Cannot remove table with active orders.");
-                return;
-            }
-            
-            System.out.print("Are you sure you want to remove table " + tableNumber + "? (y/n): ");
-            String confirm = scanner.nextLine().trim().toLowerCase();
-            
-            if (confirm.equals("y") || confirm.equals("yes")) {
-                // tableDAO.deleteTable(tableNumber); // Method not available
-                System.out.println("Table " + tableNumber + " removed successfully.");
-            } else {
-                System.out.println("Table removal cancelled.");
-            }
-            
-        } catch (Exception e) {
-            System.out.println("Error removing table: " + e.getMessage());
-        }
-    }
-    
-    private void tableStatistics() {
-        try {
-            TableDAO.TableStats stats = tableDAO.getTableStats();
-            
-            System.out.println("\n=== Table Statistics ===");
-            System.out.println("Total Tables: " + stats.getTotalTables());
-            System.out.println("Available Tables: " + stats.getAvailableTables());
-            System.out.println("Occupied Tables: " + stats.getOccupiedTables());
-            System.out.println("Reserved Tables: " + stats.getReservedTables());
-            //System.out.println("Out of Service: " + stats.getOutOfServiceTables());
-            
-            double occupancyRate = (stats.getTotalTables() > 0) ? 
-                (double) stats.getOccupiedTables() / stats.getTotalTables() * 100 : 0;
-            System.out.printf("Occupancy Rate: %.1f%%%n", occupancyRate);
-            
-        } catch (Exception e) {
-            System.out.println("Error retrieving table statistics: " + e.getMessage());
-        }
-    }
     
     private void inventoryManagement() {
         while (true) {
@@ -1442,13 +1265,7 @@ public class ManagementView {
             DatabaseConnection dbConn = DatabaseConnection.getInstance();
             System.out.println("Database: Connected");
             
-            // Table statistics
-            TableDAO.TableStats tableStats = tableDAO.getTableStats();
-            System.out.println("\nTable Status:");
-            System.out.println("  Available: " + tableStats.getAvailableTables());
-            System.out.println("  Occupied: " + tableStats.getOccupiedTables());
-            System.out.println("  Reserved: " + tableStats.getReservedTables());
-            System.out.println("  Out of Service: " + tableStats.getOutOfServiceTables());
+            
             
             // Inventory alerts
             List<Ingredient> lowStock = ingredientDAO.getLowStockIngredients();

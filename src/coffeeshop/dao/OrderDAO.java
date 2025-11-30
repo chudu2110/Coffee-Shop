@@ -8,7 +8,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +24,8 @@ public class OrderDAO {
 
     // --- Tạo đơn hàng ---
     public int createOrder(Order order) {
-        String orderQuery = "INSERT INTO orders (customer_id, status, service_type, table_number, subtotal, tax, discount, total_amount, special_instructions) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String orderQuery = "INSERT INTO orders (customer_id, status, service_type, subtotal, tax, discount, total_amount, special_instructions) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = dbConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(orderQuery, Statement.RETURN_GENERATED_KEYS)) {
@@ -36,17 +35,11 @@ public class OrderDAO {
             pstmt.setInt(1, order.getCustomerId());
             pstmt.setString(2, order.getStatus().toString());
             pstmt.setString(3, order.getServiceType().toString());
-
-            if (order.getServiceType() == Order.ServiceType.DINE_IN && order.getTableNumber() > 0)
-                pstmt.setInt(4, order.getTableNumber());
-            else
-                pstmt.setNull(4, Types.INTEGER);
-
-            pstmt.setDouble(5, order.getSubtotal());
-            pstmt.setDouble(6, order.getTax());
-            pstmt.setDouble(7, order.getDiscount());
-            pstmt.setDouble(8, order.getTotalAmount());
-            pstmt.setString(9, order.getSpecialInstructions());
+            pstmt.setDouble(4, order.getSubtotal());
+            pstmt.setDouble(5, order.getTax());
+            pstmt.setDouble(6, order.getDiscount());
+            pstmt.setDouble(7, order.getTotalAmount());
+            pstmt.setString(8, order.getSpecialInstructions());
 
             int rowsAffected = pstmt.executeUpdate();
 
@@ -119,7 +112,6 @@ public class OrderDAO {
                 order.setServiceType(Order.ServiceType.valueOf(serviceTypeStr));
             }
 
-            order.setTableNumber(rs.getInt("table_number"));
             order.setDiscount(rs.getDouble("discount"));
             order.setSpecialInstructions(rs.getString("special_instructions"));
 
@@ -165,7 +157,7 @@ public class OrderDAO {
 
 
     // --- Lấy danh sách item theo order ---
-    private List<OrderItem> getOrderItems(int orderId) {
+    public List<OrderItem> getOrderItems(int orderId) {
         List<OrderItem> orderItems = new ArrayList<>();
         String query = "SELECT * FROM order_items WHERE order_id = ?";
 
@@ -247,7 +239,6 @@ public class OrderDAO {
             int customerId = rs.getInt("customer_id");
             String serviceTypeStr = rs.getString("service_type");
             String statusStr = rs.getString("status");
-            int tableNumber = rs.getInt("table_number");
             String specialInstructions = rs.getString("special_instructions");
 
             // Khởi tạo order
@@ -256,7 +247,6 @@ public class OrderDAO {
 
             order = new Order(orderId, customerId, serviceType);
             order.setStatus(status);
-            order.setTableNumber(tableNumber);
             order.setSpecialInstructions(specialInstructions);
 
             // Lấy các item trong order
@@ -382,7 +372,6 @@ public class OrderDAO {
         int customerId = rs.getInt("customer_id");
         String serviceTypeStr = rs.getString("service_type");
         String statusStr = rs.getString("status");
-        int tableNumber = rs.getInt("table_number");
         String notes = rs.getString("special_instructions");
 
         Order.ServiceType serviceType = Order.ServiceType.valueOf(serviceTypeStr);
@@ -390,7 +379,6 @@ public class OrderDAO {
 
         Order order = new Order(orderId, customerId, serviceType);
         order.setStatus(status);
-        order.setTableNumber(tableNumber);
         order.setSpecialInstructions(notes);
 
         return order;

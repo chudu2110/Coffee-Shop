@@ -8,21 +8,18 @@ import coffeeshop.dao.CustomerDAO;
 import coffeeshop.dao.MenuItemDAO;
 import coffeeshop.dao.OrderDAO;
 import coffeeshop.dao.PaymentDAO;
-import coffeeshop.dao.TableDAO;
 import coffeeshop.model.Coffee;
 import coffeeshop.model.Customer;
 import coffeeshop.model.MenuItem;
 import coffeeshop.model.Order;
 import coffeeshop.model.OrderItem;
 import coffeeshop.model.Payment;
-import coffeeshop.model.Table;
 
 public class CustomerView {
     private Scanner scanner;
     private MenuItemDAO menuItemDAO;
     private CustomerDAO customerDAO;
     private OrderDAO orderDAO;
-    private TableDAO tableDAO;
     private PaymentDAO paymentDAO;
     private Customer currentCustomer;
     private Order currentOrder;
@@ -32,7 +29,6 @@ public class CustomerView {
         this.menuItemDAO = new MenuItemDAO();
         this.customerDAO = new CustomerDAO();
         this.orderDAO = new OrderDAO();
-        this.tableDAO = new TableDAO();
         this.paymentDAO = new PaymentDAO();
     }
     
@@ -156,9 +152,6 @@ public class CustomerView {
         try {
             Order.ServiceType serviceType = chooseServiceType();
             currentOrder = new Order(0, currentCustomer.getCustomerId(), serviceType);
-            if (serviceType == Order.ServiceType.DINE_IN) {
-                selectTable();
-            }
             
             addItemsToOrder();
             
@@ -183,42 +176,6 @@ public class CustomerView {
         return (choice == 1) ? Order.ServiceType.DINE_IN : Order.ServiceType.TAKEAWAY;
     }
     
-    private void selectTable() {
-        try {
-            List<Table> availableTables = tableDAO.getAllTables();
-            
-            if (availableTables.isEmpty()) {
-                  System.out.println("No tables available. Switching to take-away.");
-                  currentOrder = new Order(0, currentCustomer.getCustomerId(), Order.ServiceType.TAKEAWAY);
-                  return;
-              }
-            
-            System.out.println("\n=== Available Tables ===");
-            for (Table table : availableTables) {
-                System.out.println(table.getTableNumber() + ". Capacity: " + table.getCapacity());
-            }
-            
-            System.out.print("Choose table number: ");
-            int tableNumber = getIntInput();
-            
-            Table selectedTable = availableTables.stream()
-                .filter(t -> t.getTableNumber() == tableNumber)
-                .findFirst()
-                .orElse(null);
-            
-            if (selectedTable != null) {
-                currentOrder.setTableNumber(tableNumber);
-                System.out.println("Table " + tableNumber + " selected.");
-            } else {
-                System.out.println("Invalid table number. Using first available table.");
-                currentOrder.setTableNumber(availableTables.get(0).getTableNumber());
-            }
-            
-        } catch (Exception e) {
-              System.out.println("Error selecting table: " + e.getMessage());
-              currentOrder = new Order(0, currentCustomer.getCustomerId(), Order.ServiceType.TAKEAWAY);
-          }
-    }
     
     private void addItemsToOrder() {
         while (true) {
@@ -373,9 +330,7 @@ public class CustomerView {
         
         System.out.println("\n=== Current Order ===");
         System.out.println("Service Type: " + currentOrder.getServiceType());
-        if (currentOrder.getTableNumber() > 0) {
-            System.out.println("Table: " + currentOrder.getTableNumber());
-        }
+        
         System.out.println();
         
         System.out.printf("%-20s %-5s %-10s %-15s %-30s%n", "Item", "Qty", "Unit Price", "Total", "Customizations");
@@ -484,13 +439,7 @@ public class CustomerView {
                 customerDAO.updateCustomer(currentCustomer);
             }
             
-            if (currentOrder.getServiceType() == Order.ServiceType.DINE_IN && currentOrder.getTableNumber() > 0) {
-                Table table = tableDAO.getTableById(currentOrder.getTableNumber());
-                if (table != null) {
-                    table.occupyTable(1);
-                    tableDAO.updateTableStatus(table.getTableNumber(), table.getStatus());
-                }
-            }
+            
             
             System.out.println("\n=== Order Confirmed ===");
             System.out.println("Order ID: " + orderId);
@@ -504,8 +453,7 @@ public class CustomerView {
             }
             
             if (currentOrder.getServiceType() == Order.ServiceType.DINE_IN) {
-                System.out.println("Table: " + currentOrder.getTableNumber());
-                System.out.println("Please proceed to your table. Your order will be served shortly.");
+                System.out.println("Please take a seat. Your order will be served shortly.");
             } else {
                 System.out.println("Please wait for your order to be prepared for pickup.");
             }

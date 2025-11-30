@@ -25,6 +25,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
@@ -40,7 +41,6 @@ public class ManagementSwingApp extends JFrame {
     private CustomerDAO customerDAO;
     private OrderDAO orderDAO;
     private PaymentDAO paymentDAO;
-    private TableDAO tableDAO;
     private final Color coffeeDark = new Color(88, 57, 39);
     private final Color coffeeLight = new Color(222, 206, 170);
     private final Color coffeeText = new Color(245, 235, 224);
@@ -66,7 +66,6 @@ public class ManagementSwingApp extends JFrame {
         this.customerDAO = new CustomerDAO();
         this.orderDAO = new OrderDAO();
         this.paymentDAO = new PaymentDAO();
-        this.tableDAO = new TableDAO();
     }
     
     private void setupUI() {
@@ -120,7 +119,7 @@ public class ManagementSwingApp extends JFrame {
     
     private boolean authenticate() {
         final boolean[] ok = {false};
-        JDialog dialog = new JDialog(this, "Authentication", true);
+        JDialog dialog = new JDialog(this, "Chào mừng!", true);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setSize(520, 260);
         dialog.setLocationRelativeTo(this);
@@ -130,12 +129,12 @@ public class ManagementSwingApp extends JFrame {
         authPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
         authPanel.setBackground(new Color(255, 253, 250));
 
-        JLabel titleLabel = new JLabel("ADMIN AUTHENTICATION");
+        JLabel titleLabel = new JLabel("Chào mừng!");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         titleLabel.setForeground(new Color(85, 45, 25));
 
-        JLabel passwordLabel = new JLabel("Enter Management Password:");
+        JLabel passwordLabel = new JLabel("Vui lòng nhập mật khẩu quản trị:");
         JPasswordField passwordField = new JPasswordField(24);
         passwordField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         passwordField.setPreferredSize(new java.awt.Dimension(280, 30));
@@ -178,7 +177,7 @@ public class ManagementSwingApp extends JFrame {
                 ok[0] = true;
                 dialog.dispose();
             } else {
-                errorLabel.setText("Access denied!");
+                errorLabel.setText("Mật khẩu chưa đúng, vui lòng thử lại");
             }
         });
 
@@ -267,15 +266,17 @@ public class ManagementSwingApp extends JFrame {
         
         // Orders Tab
         tabbedPane.addTab("Orders", createOrdersPanel());
-        
+
+        // Items Tab
+        tabbedPane.addTab("Items", createItemsPanel());
+
         // Payments Tab
         tabbedPane.addTab("Payments", createPaymentsPanel());
         
         // Customers Tab
         tabbedPane.addTab("Customers", createCustomersPanel());
         
-        // Tables Tab
-        tabbedPane.addTab("Tables", createTablesPanel());
+        
         
         // Reports Tab
         tabbedPane.addTab("Reports", createReportsPanel());
@@ -332,7 +333,7 @@ public class ManagementSwingApp extends JFrame {
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
         panel.setBackground(panelBg);
         
-        String[] columns = {"Order ID", "Customer", "Service Type", "Table", "Total", "Status", "Date"};
+        String[] columns = {"Order ID", "Customer", "Service Type", "Total", "Status", "Date"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -361,6 +362,71 @@ public class ManagementSwingApp extends JFrame {
         panel.add(buttonPanel, BorderLayout.SOUTH);
         
         return panel;
+    }
+
+    private JPanel createItemsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
+
+        // Top controls: Order ID input + Load button
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.setOpaque(false);
+        JLabel lbl = new JLabel("Order ID:");
+        JTextField orderIdField = new JTextField(10);
+        JButton loadBtn = createStaticCoffeeButton("Load Items", new Color(121, 85, 72));
+        top.add(lbl);
+        top.add(orderIdField);
+        top.add(loadBtn);
+        panel.add(top, BorderLayout.NORTH);
+
+        // Items table
+        String[] columns = {"Item", "Qty", "Unit Price", "Line Total", "Customizations"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+        JTable itemsTable = new JTable(model);
+        itemsTable.setRowHeight(25);
+
+        JScrollPane scrollPane = new JScrollPane(itemsTable);
+        scrollPane.setBorder(new TitledBorder("Order Items"));
+        scrollPane.getViewport().setBackground(panelBg);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Load action
+        loadBtn.addActionListener(e -> {
+            String text = orderIdField.getText().trim();
+            try {
+                int orderId = Integer.parseInt(text);
+                loadOrderItems(orderId, model);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Please enter a valid Order ID", "Invalid Input", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+
+        return panel;
+    }
+
+    private void loadOrderItems(int orderId, DefaultTableModel model) {
+        model.setRowCount(0);
+        try {
+            List<OrderItem> items = orderDAO.getOrderItems(orderId);
+            for (OrderItem oi : items) {
+                model.addRow(new Object[]{
+                    oi.getMenuItem().getName(),
+                    oi.getQuantity(),
+                    String.format("%.0fđ", oi.getUnitPrice()),
+                    String.format("%.0fđ", oi.getItemTotal()),
+                    oi.getCustomizations()
+                });
+            }
+            if (items.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No items found for Order #" + orderId, "Info", JOptionPane.INFORMATION_MESSAGE);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error loading order items: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
     
     private JPanel createPaymentsPanel() {
@@ -435,41 +501,6 @@ public class ManagementSwingApp extends JFrame {
         return panel;
     }
     
-    private JPanel createTablesPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
-        panel.setBackground(panelBg);
-        
-        String[] columns = {"Table #", "Capacity", "Status", "Customer ID", "Notes"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        
-        JTable tablesTable = new JTable(model);
-        tablesTable.setRowHeight(25);
-        
-        loadTables(model);
-        
-        JScrollPane scrollPane = new JScrollPane(tablesTable);
-        scrollPane.setBorder(new TitledBorder("Table Management"));
-        scrollPane.getViewport().setBackground(panelBg);
-        
-        panel.add(scrollPane, BorderLayout.CENTER);
-        
-        // Buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        buttonPanel.setOpaque(false);
-        JButton refreshBtn = createStaticCoffeeButton("Refresh", new Color(121, 85, 72));
-        refreshBtn.addActionListener(e -> loadTables(model));
-        
-        buttonPanel.add(refreshBtn);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
-        
-        return panel;
-    }
     
     private JPanel createReportsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -606,13 +637,10 @@ public class ManagementSwingApp extends JFrame {
             for (Order order : orders) {
                 Customer customer = customerDAO.getCustomerById(order.getCustomerId());
                 String customerName = (customer != null) ? customer.getName() : "Unknown";
-                String tableInfo = (order.getTableNumber() > 0) ? String.valueOf(order.getTableNumber()) : "N/A";
-                
                 model.addRow(new Object[]{
                     order.getOrderId(),
                     customerName,
                     order.getServiceType(),
-                    tableInfo,
                     String.format("%.0fđ", order.getTotalAmount()),
                     order.getStatus(),
                     order.getOrderTime().toString().substring(0, 16)
@@ -680,24 +708,7 @@ public class ManagementSwingApp extends JFrame {
         }
     }
     
-    private void loadTables(DefaultTableModel model) {
-        model.setRowCount(0);
-        try {
-            List<Table> tables = tableDAO.getAllTables();
-            for (Table table : tables) {
-                model.addRow(new Object[]{
-                    table.getTableNumber(),
-                    table.getCapacity(),
-                    table.getStatus(),
-                    table.getCurrentCustomerId() > 0 ? String.valueOf(table.getCurrentCustomerId()) : "N/A",
-                    table.getNotes() != null ? table.getNotes() : ""
-                });
-            }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error loading tables: " + e.getMessage(), 
-                "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
+    
     
     private void loadReports(JTextArea reportsArea) {
         StringBuilder report = new StringBuilder();
@@ -722,13 +733,7 @@ public class ManagementSwingApp extends JFrame {
             report.append(String.format("Total Revenue: %.0fđ\n", paymentStats.getTotalRevenue()));
             report.append(String.format("Average Payment Amount: %.0fđ\n\n", paymentStats.getAvgPaymentAmount()));
             
-            // Table Statistics
-            TableDAO.TableStats tableStats = tableDAO.getTableStats();
-            report.append("=== TABLE STATISTICS ===\n");
-            report.append("Available Tables: ").append(tableStats.getAvailableTables()).append("\n");
-            report.append("Occupied Tables: ").append(tableStats.getOccupiedTables()).append("\n");
-            report.append("Reserved Tables: ").append(tableStats.getReservedTables()).append("\n");
-            report.append("Out of Service: ").append(tableStats.getOutOfServiceTables()).append("\n\n");
+            
             
             // Menu Statistics
             report.append("=== MENU STATISTICS ===\n");

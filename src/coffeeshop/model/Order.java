@@ -25,7 +25,6 @@ public class Order {
     private double tax;
     private double discount;
     private double totalAmount;
-    private int tableNumber; 
     private String specialInstructions;
     
     public Order(int orderId, int customerId, ServiceType serviceType) {
@@ -35,7 +34,6 @@ public class Order {
         this.orderItems = new ArrayList<>();
         this.status = OrderStatus.PENDING;
         this.orderTime = LocalDateTime.now();
-        this.tableNumber = -1;
         this.specialInstructions = "";
         this.tax = 0.0;
         this.discount = 0.0;
@@ -45,7 +43,6 @@ public class Order {
     this.orderItems = new ArrayList<>();
     this.status = OrderStatus.PENDING;
     this.orderTime = LocalDateTime.now();
-    this.tableNumber = -1;
     this.specialInstructions = "";
     this.tax = 0.0;
     this.discount = 0.0;
@@ -95,9 +92,6 @@ public class Order {
         return totalAmount;
     }
     
-    public int getTableNumber() {
-        return tableNumber;
-    }
     
     public String getSpecialInstructions() {
         return specialInstructions;
@@ -110,11 +104,6 @@ public class Order {
         }
     }
     
-    public void setTableNumber(int tableNumber) {
-        if (serviceType == ServiceType.DINE_IN && tableNumber > 0) {
-            this.tableNumber = tableNumber;
-        }
-    }
     
     public void setSpecialInstructions(String specialInstructions) {
         this.specialInstructions = specialInstructions != null ? specialInstructions : "";
@@ -211,9 +200,7 @@ public class Order {
         sb.append(String.format("Status: %s | Service: %s\n", status, serviceType));
         sb.append(String.format("Order Time: %s\n", orderTime));
         
-        if (serviceType == ServiceType.DINE_IN && tableNumber > 0) {
-            sb.append(String.format("Table: %d\n", tableNumber));
-        }
+        
         
         sb.append("\nItems:\n");
         for (OrderItem item : orderItems) {

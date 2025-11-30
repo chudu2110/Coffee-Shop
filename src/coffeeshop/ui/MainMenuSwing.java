@@ -143,7 +143,7 @@ public class MainMenuSwing extends JFrame {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 1.0;
 
-        JLabel cardTitle = new JLabel("Xác thực và Vai trò");
+        JLabel cardTitle = new JLabel("Chào mừng!");
         cardTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
         cardTitle.setForeground(new Color(85, 45, 25));
         c.gridx = 0; c.gridy = 0; c.gridwidth = 2;

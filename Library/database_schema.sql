@@ -31,19 +31,6 @@ CREATE TABLE customers (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Table for tables
-CREATE TABLE tables (
-    table_number INTEGER PRIMARY KEY,
-    capacity INTEGER NOT NULL,
-    status VARCHAR(20) DEFAULT 'AVAILABLE',
-    current_customer_id INTEGER,
-    occupied_since TIMESTAMP,
-    reserved_until TIMESTAMP,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (current_customer_id) REFERENCES customers(customer_id)
-);
 
 -- Table for orders
 CREATE TABLE orders (
@@ -51,7 +38,6 @@ CREATE TABLE orders (
     customer_id INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'PENDING',
     service_type VARCHAR(20) NOT NULL,
-    table_number INTEGER,
     subtotal DECIMAL(10,3) NOT NULL,
     tax DECIMAL(10,3) NOT NULL,
     discount DECIMAL(10,3) DEFAULT 0.00,
@@ -62,7 +48,7 @@ CREATE TABLE orders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
-    FOREIGN KEY (table_number) REFERENCES tables(table_number)
+    
 );
 
 -- Table for order items
@@ -134,7 +120,6 @@ CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX idx_order_items_menu_item_id ON order_items(menu_item_id);
 CREATE INDEX idx_payments_order_id ON payments(order_id);
 CREATE INDEX idx_payments_status ON payments(status);
-CREATE INDEX idx_tables_status ON tables(status);
 CREATE INDEX idx_ingredients_is_active ON ingredients(is_active);
 CREATE INDEX idx_menu_items_category ON menu_items(category);
 CREATE INDEX idx_menu_items_is_available ON menu_items(is_available);
@@ -189,16 +174,6 @@ INSERT INTO customers (name, email, phone_number, loyalty_points) VALUES
 ('Alice Brown', 'alice.brown@email.com', '555-0104', 8.00),
 ('Charlie Wilson', 'charlie.wilson@email.com', '555-0105', 33.50);
 
--- Sample tables
-INSERT INTO tables (table_number, capacity, status) VALUES
-(1, 2, 'AVAILABLE'),
-(2, 4, 'AVAILABLE'),
-(3, 2, 'AVAILABLE'),
-(4, 6, 'AVAILABLE'),
-(5, 4, 'AVAILABLE'),
-(6, 2, 'AVAILABLE'),
-(7, 4, 'AVAILABLE'),
-(8, 8, 'AVAILABLE');
 
 -- Sample ingredients
 INSERT INTO ingredients (name, description, unit, current_stock, minimum_stock, maximum_stock, cost_per_unit, supplier, is_active) VALUES
@@ -251,11 +226,6 @@ CREATE TRIGGER update_customers_timestamp
         UPDATE customers SET updated_at = CURRENT_TIMESTAMP WHERE customer_id = NEW.customer_id;
     END;
 
-CREATE TRIGGER update_tables_timestamp 
-    AFTER UPDATE ON tables
-    BEGIN
-        UPDATE tables SET updated_at = CURRENT_TIMESTAMP WHERE table_number = NEW.table_number;
-    END;
 
 CREATE TRIGGER update_orders_timestamp 
     AFTER UPDATE ON orders
@@ -277,18 +247,6 @@ CREATE TRIGGER update_ingredients_timestamp
 
 -- Views for common queries
 
--- View for current table status
-CREATE VIEW table_status_view AS
-SELECT 
-    t.table_number,
-    t.capacity,
-    t.status,
-    c.name as customer_name,
-    t.occupied_since,
-    t.reserved_until,
-    t.notes
-FROM tables t
-LEFT JOIN customers c ON t.current_customer_id = c.customer_id;
 
 -- View for order summary
 CREATE VIEW order_summary_view AS
@@ -297,14 +255,13 @@ SELECT
     c.name as customer_name,
     o.status,
     o.service_type,
-    o.table_number,
     o.total_amount,
     o.order_time,
     COUNT(oi.order_item_id) as item_count
 FROM orders o
 JOIN customers c ON o.customer_id = c.customer_id
 LEFT JOIN order_items oi ON o.order_id = oi.order_id
-GROUP BY o.order_id, c.name, o.status, o.service_type, o.table_number, o.total_amount, o.order_time;
+GROUP BY o.order_id, c.name, o.status, o.service_type, o.total_amount, o.order_time;
 
 -- View for low stock ingredients
 CREATE VIEW low_stock_ingredients_view AS
