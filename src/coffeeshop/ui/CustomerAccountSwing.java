@@ -1,5 +1,11 @@
 package coffeeshop.ui;
 
+import coffeeshop.dao.CustomerDAO;
+import coffeeshop.dao.OrderDAO;
+import coffeeshop.dao.PaymentDAO;
+import coffeeshop.model.Customer;
+import coffeeshop.model.Order;
+import coffeeshop.model.Payment;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
@@ -8,7 +14,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.List;
-
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -25,15 +30,12 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
 
-import coffeeshop.dao.CustomerDAO;
-import coffeeshop.dao.OrderDAO;
-import coffeeshop.dao.PaymentDAO;
-import coffeeshop.model.Customer;
-import coffeeshop.model.Order;
-import coffeeshop.model.Payment;
-
 
 public class CustomerAccountSwing extends JFrame {
+    private final Color coffeeDark = new Color(88, 57, 39);
+    private final Color coffeeLight = new Color(222, 206, 170);
+    private final Color coffeeText = new Color(245, 235, 224);
+    private final Color panelBg = new Color(255, 253, 250);
     private CustomerDAO customerDAO;
     private OrderDAO orderDAO;
     private PaymentDAO paymentDAO;
@@ -57,14 +59,27 @@ public class CustomerAccountSwing extends JFrame {
         setLocationRelativeTo(null);
         setResizable(true);
         
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(new Color(245, 245, 245));
+        JPanel mainPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(java.awt.Graphics g) {
+                super.paintComponent(g);
+                java.awt.Graphics2D g2d = (java.awt.Graphics2D) g.create();
+                g2d.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+                java.awt.GradientPaint gradient = new java.awt.GradientPaint(0, 0, coffeeDark, 0, getHeight(), coffeeLight);
+                g2d.setPaint(gradient);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                g2d.dispose();
+            }
+        };
         
         JPanel headerPanel = createHeaderPanel();
         mainPanel.add(headerPanel, BorderLayout.NORTH);
         
         JTabbedPane tabbedPane = createTabbedPane();
-        mainPanel.add(tabbedPane, BorderLayout.CENTER);
+        JPanel centerWrapper = new JPanel(new BorderLayout());
+        centerWrapper.setBackground(panelBg);
+        centerWrapper.add(tabbedPane, BorderLayout.CENTER);
+        mainPanel.add(centerWrapper, BorderLayout.CENTER);
         
         JPanel footerPanel = createFooterPanel();
         mainPanel.add(footerPanel, BorderLayout.SOUTH);
@@ -74,16 +89,16 @@ public class CustomerAccountSwing extends JFrame {
     
     private JPanel createHeaderPanel() {
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(new Color(34, 139, 34));
+        header.setOpaque(false);
         header.setBorder(new EmptyBorder(15, 20, 15, 20));
         
         JLabel titleLabel = new JLabel("👤 CUSTOMER ACCOUNT MANAGEMENT");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setForeground(coffeeText);
         
         JLabel subtitleLabel = new JLabel("Quản lý tài khoản và lịch sử đơn hàng");
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        subtitleLabel.setForeground(new Color(255, 255, 255, 200));
+        subtitleLabel.setForeground(new Color(245, 235, 224, 200));
         
         JPanel titlePanel = new JPanel(new BorderLayout());
         titlePanel.setOpaque(false);
@@ -92,11 +107,7 @@ public class CustomerAccountSwing extends JFrame {
         
         header.add(titlePanel, BorderLayout.WEST);
         
-        JButton backBtn = new JButton("← Back to Main Menu");
-        backBtn.setBackground(new Color(220, 20, 60));
-        backBtn.setForeground(Color.WHITE);
-        backBtn.setBorderPainted(false);
-        backBtn.setFocusPainted(false);
+        JButton backBtn = createStyledButton("← Back to Main Menu", new Color(93, 64, 55));
         backBtn.addActionListener(e -> {
             new MainMenuSwing().setVisible(true);
             dispose();
@@ -110,6 +121,14 @@ public class CustomerAccountSwing extends JFrame {
     private JTabbedPane createTabbedPane() {
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        javax.swing.UIManager.put("TabbedPane.contentAreaColor", panelBg);
+        javax.swing.UIManager.put("TabbedPane.background", panelBg);
+        javax.swing.UIManager.put("TabbedPane.darkShadow", panelBg);
+        javax.swing.UIManager.put("TabbedPane.light", panelBg);
+        javax.swing.UIManager.put("TabbedPane.highlight", panelBg);
+        tabbedPane.setOpaque(false);
+        tabbedPane.setBackground(new Color(0,0,0,0));
+        tabbedPane.setForeground(new Color(85, 45, 25));
         tabbedPane.addTab("Login/Register", createLoginPanel());
         tabbedPane.addTab("Account Info", createAccountInfoPanel());        
         tabbedPane.addTab("Order History", createOrderHistoryPanel());
@@ -121,151 +140,205 @@ public class CustomerAccountSwing extends JFrame {
     private JPanel createLoginPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(new EmptyBorder(30, 30, 30, 30));
-        panel.setBackground(new Color(248, 248, 248));
-        
+        panel.setBackground(panelBg);
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
-        
+
         JLabel titleLabel = new JLabel("Customer Authentication");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         panel.add(titleLabel, gbc);
-        
-        JPanel loginPanel = new JPanel(new GridBagLayout());
-        loginPanel.setBorder(new TitledBorder("Login"));
-        loginPanel.setBackground(Color.WHITE);
-        
+
+        JPanel authPanel = new JPanel(new GridBagLayout());
+        authPanel.setBorder(new TitledBorder(
+            new javax.swing.border.LineBorder(new Color(200, 180, 150), 1, true),
+            "Authentication",
+            TitledBorder.LEADING,
+            TitledBorder.TOP,
+            new Font("Segoe UI", Font.BOLD, 14),
+            new Color(85, 45, 25)
+        ));
+        authPanel.setBackground(panelBg);
+
+        GridBagConstraints a = new GridBagConstraints();
+        a.insets = new Insets(10, 10, 10, 10);
+        a.anchor = GridBagConstraints.WEST;
+
+        final boolean[] registerMode = {false};
+
+        JLabel nameLabel = new JLabel("Name:");
+        JTextField nameField = new JTextField(20);
         JLabel emailLabel = new JLabel("Email:");
         JTextField emailField = new JTextField(20);
-        JButton loginBtn = new JButton("Login");
-        loginBtn.setBackground(new Color(34, 139, 34));
-        loginBtn.setForeground(Color.WHITE);
-        loginBtn.setBorderPainted(false);
-        
-        gbc.gridwidth = 1;
-        gbc.gridx = 0; gbc.gridy = 0;
-        loginPanel.add(emailLabel, gbc);
-        gbc.gridx = 1;
-        loginPanel.add(emailField, gbc);
-        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2;
-        loginPanel.add(loginBtn, gbc);
-        
-        loginBtn.addActionListener(e -> {
-            String email = emailField.getText().trim();
-            if (email.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter email address", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            
-            try {
-                Customer customer = customerDAO.getCustomerByEmail(email);
-                if (customer != null) {
-                    currentCustomer = customer;
-                    JOptionPane.showMessageDialog(this, "Login successful! Welcome " + customer.getName(), 
-                        "Success", JOptionPane.INFORMATION_MESSAGE);
-                    updateAccountInfo();
-                    updateOrderHistory();
-                    updatePaymentHistory();
-                } else {
-                    JOptionPane.showMessageDialog(this, "Customer not found with email: " + email, 
+        JLabel phoneLabel = new JLabel("Phone:");
+        JTextField phoneField = new JTextField(20);
+
+        JButton actionBtn = createStyledButton("Login", new Color(93, 64, 55));
+
+        JLabel switchText = new JLabel("Don't have an account?");
+        JButton switchBtn = new JButton("Register");
+        switchBtn.setBackground(new Color(200, 180, 150));
+        switchBtn.setForeground(new Color(60, 40, 30));
+        switchBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        switchBtn.setBorder(new EmptyBorder(6, 10, 6, 10));
+
+        a.gridwidth = 1;
+        a.gridx = 0; a.gridy = 1;
+        authPanel.add(nameLabel, a);
+        a.gridx = 1;
+        authPanel.add(nameField, a);
+
+        a.gridx = 0; a.gridy = 2;
+        authPanel.add(emailLabel, a);
+        a.gridx = 1;
+        authPanel.add(emailField, a);
+
+        a.gridx = 0; a.gridy = 3;
+        authPanel.add(phoneLabel, a);
+        a.gridx = 1;
+        authPanel.add(phoneField, a);
+
+        a.gridx = 0; a.gridy = 4; a.gridwidth = 2;
+        authPanel.add(actionBtn, a);
+
+        Runnable updateMode = () -> {
+            boolean isRegister = registerMode[0];
+            nameLabel.setVisible(isRegister);
+            nameField.setVisible(isRegister);
+            phoneLabel.setVisible(isRegister);
+            phoneField.setVisible(isRegister);
+            actionBtn.setText(isRegister ? "Register" : "Login");
+            actionBtn.setBackground(isRegister ? new Color(186, 140, 99) : new Color(93, 64, 55));
+            switchText.setText(isRegister ? "Already have an account?" : "Don't have an account?");
+            switchBtn.setText(isRegister ? "Login" : "Register");
+            authPanel.revalidate();
+            authPanel.repaint();
+        };
+        updateMode.run();
+        switchBtn.addActionListener(e -> { registerMode[0] = !registerMode[0]; updateMode.run(); });
+
+        actionBtn.addActionListener(e -> {
+            boolean isRegister = registerMode[0];
+            if (isRegister) {
+                String name = nameField.getText().trim();
+                String email = emailField.getText().trim();
+                String phone = phoneField.getText().trim();
+                if (name.isEmpty() || email.isEmpty() || phone.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Please fill in all fields", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                try {
+                    Customer newCustomer = new Customer(0, name, email, phone);
+                    int customerId = customerDAO.createCustomer(newCustomer);
+                    if (customerId > 0) {
+                        newCustomer = customerDAO.getCustomerById(customerId);
+                        currentCustomer = newCustomer;
+                        JOptionPane.showMessageDialog(this, "Registration successful! Welcome " + name, 
+                            "Success", JOptionPane.INFORMATION_MESSAGE);
+                        updateAccountInfo();
+                        updateOrderHistory();
+                        updatePaymentHistory();
+                        nameField.setText("");
+                        emailField.setText("");
+                        phoneField.setText("");
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Registration failed", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Registration failed: " + ex.getMessage(), 
                         "Error", JOptionPane.ERROR_MESSAGE);
                 }
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Login failed: " + ex.getMessage(), 
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
-        
-        JPanel registerPanel = new JPanel(new GridBagLayout());
-        registerPanel.setBorder(new TitledBorder("Register New Account"));
-        registerPanel.setBackground(Color.WHITE);
-        
-        JLabel regNameLabel = new JLabel("Name:");
-        JTextField regNameField = new JTextField(20);
-        JLabel regEmailLabel = new JLabel("Email:");
-        JTextField regEmailField = new JTextField(20);
-        JLabel regPhoneLabel = new JLabel("Phone:");
-        JTextField regPhoneField = new JTextField(20);
-        JButton registerBtn = new JButton("Register");
-        registerBtn.setBackground(new Color(70, 130, 180));
-        registerBtn.setForeground(Color.WHITE);
-        registerBtn.setBorderPainted(false);
-        
-        gbc.gridwidth = 1;
-        gbc.gridx = 0; gbc.gridy = 0;
-        registerPanel.add(regNameLabel, gbc);
-        gbc.gridx = 1;
-        registerPanel.add(regNameField, gbc);
-        gbc.gridx = 0; gbc.gridy = 1;
-        registerPanel.add(regEmailLabel, gbc);
-        gbc.gridx = 1;
-        registerPanel.add(regEmailField, gbc);
-        gbc.gridx = 0; gbc.gridy = 2;
-        registerPanel.add(regPhoneLabel, gbc);
-        gbc.gridx = 1;
-        registerPanel.add(regPhoneField, gbc);
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
-        registerPanel.add(registerBtn, gbc);
-        
-        registerBtn.addActionListener(e -> {
-            String name = regNameField.getText().trim();
-            String email = regEmailField.getText().trim();
-            String phone = regPhoneField.getText().trim();
-            
-            if (name.isEmpty() || email.isEmpty() || phone.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please fill in all fields", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            
-            try {
-                Customer newCustomer = new Customer(0, name, email, phone);
-                int customerId = customerDAO.createCustomer(newCustomer);
-                if (customerId > 0) {
-                    newCustomer = customerDAO.getCustomerById(customerId);
-                    currentCustomer = newCustomer;
-                    JOptionPane.showMessageDialog(this, "Registration successful! Welcome " + name, 
-                        "Success", JOptionPane.INFORMATION_MESSAGE);
-                    updateAccountInfo();
-                    regNameField.setText("");
-                    regEmailField.setText("");
-                    regPhoneField.setText("");
-                } else {
-                    JOptionPane.showMessageDialog(this, "Registration failed", "Error", JOptionPane.ERROR_MESSAGE);
+            } else {
+                String email = emailField.getText().trim();
+                if (email.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Please enter email address", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
                 }
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Registration failed: " + ex.getMessage(), 
-                    "Error", JOptionPane.ERROR_MESSAGE);
+                try {
+                    Customer customer = customerDAO.getCustomerByEmail(email);
+                    if (customer != null) {
+                        currentCustomer = customer;
+                        JOptionPane.showMessageDialog(this, "Login successful! Welcome " + customer.getName(), 
+                            "Success", JOptionPane.INFORMATION_MESSAGE);
+                        updateAccountInfo();
+                        updateOrderHistory();
+                        updatePaymentHistory();
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Customer not found with email: " + email, 
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Login failed: " + ex.getMessage(), 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
             }
         });
-        
-        gbc.gridwidth = 1;
+
+        // Fields
+        a.gridwidth = 1;
+        a.gridx = 0; a.gridy = 0;
+        authPanel.add(emailLabel, a);
+        a.gridx = 1;
+        authPanel.add(emailField, a);
+
+        a.gridx = 0; a.gridy = 1;
+        authPanel.add(nameLabel, a);
+        a.gridx = 1;
+        authPanel.add(nameField, a);
+
+        a.gridx = 0; a.gridy = 2;
+        authPanel.add(phoneLabel, a);
+        a.gridx = 1;
+        authPanel.add(phoneField, a);
+
+        a.gridx = 0; a.gridy = 3; a.gridwidth = 2;
+        authPanel.add(actionBtn, a);
+
+        JPanel switchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        switchPanel.setOpaque(false);
+        switchPanel.add(switchText);
+        switchPanel.add(switchBtn);
+
+        a.gridx = 0; a.gridy = 4; a.gridwidth = 2;
+        authPanel.add(switchPanel, a);
+
+        gbc.gridwidth = 2;
         gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(loginPanel, gbc);
-        gbc.gridx = 1;
-        panel.add(registerPanel, gbc);
-        
+        panel.add(authPanel, gbc);
+
         return panel;
     }
     
     private JPanel createAccountInfoPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         JTextArea accountInfo = new JTextArea(15, 50);
         accountInfo.setEditable(false);
         accountInfo.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        accountInfo.setBackground(new Color(248, 248, 248));
-        accountInfo.setBorder(new TitledBorder("Account Information"));
+        accountInfo.setBackground(panelBg);
+        accountInfo.setBorder(new TitledBorder(
+            new javax.swing.border.LineBorder(new Color(200, 180, 150), 1, true),
+            "Account Information",
+            TitledBorder.LEADING,
+            TitledBorder.TOP,
+            new Font("Segoe UI", Font.BOLD, 14),
+            new Color(85, 45, 25)
+        ));
         
         JScrollPane scrollPane = new JScrollPane(accountInfo);
+        scrollPane.getViewport().setBackground(panelBg);
         panel.add(scrollPane, BorderLayout.CENTER);
         
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStyledButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> updateAccountInfo());
         
-        JButton updateBtn = new JButton("Update Info");
+        JButton updateBtn = createStyledButton("Update Info", new Color(93, 64, 55));
         updateBtn.addActionListener(e -> showUpdateDialog());
         
         buttonPanel.add(refreshBtn);
@@ -280,6 +353,7 @@ public class CustomerAccountSwing extends JFrame {
     private JPanel createOrderHistoryPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         String[] columns = {"Order ID", "Date", "Service Type", "Table", "Total", "Status", "Items"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
@@ -294,16 +368,25 @@ public class CustomerAccountSwing extends JFrame {
         ordersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         
         JScrollPane scrollPane = new JScrollPane(ordersTable);
-        scrollPane.setBorder(new TitledBorder("Order History"));
+        scrollPane.getViewport().setBackground(panelBg);
+        scrollPane.setBorder(new TitledBorder(
+            new javax.swing.border.LineBorder(new Color(200, 180, 150), 1, true),
+            "Order History",
+            TitledBorder.LEADING,
+            TitledBorder.TOP,
+            new Font("Segoe UI", Font.BOLD, 14),
+            new Color(85, 45, 25)
+        ));
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStyledButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> updateOrderHistory());
         
-        JButton detailsBtn = new JButton("View Details");
+        JButton detailsBtn = createStyledButton("View Details", new Color(93, 64, 55));
         detailsBtn.addActionListener(e -> showOrderDetails(ordersTable));
         
         buttonPanel.add(refreshBtn);
@@ -319,6 +402,7 @@ public class CustomerAccountSwing extends JFrame {
     private JPanel createPaymentHistoryPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         String[] columns = {"Payment ID", "Order ID", "Method", "Amount", "Status", "Date", "Reference"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
@@ -332,12 +416,21 @@ public class CustomerAccountSwing extends JFrame {
         paymentsTable.setRowHeight(25);
         
         JScrollPane scrollPane = new JScrollPane(paymentsTable);
-        scrollPane.setBorder(new TitledBorder("Payment History"));
+        scrollPane.getViewport().setBackground(panelBg);
+        scrollPane.setBorder(new TitledBorder(
+            new javax.swing.border.LineBorder(new Color(200, 180, 150), 1, true),
+            "Payment History",
+            TitledBorder.LEADING,
+            TitledBorder.TOP,
+            new Font("Segoe UI", Font.BOLD, 14),
+            new Color(85, 45, 25)
+        ));
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStyledButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> updatePaymentHistory());
         
         buttonPanel.add(refreshBtn);
@@ -350,11 +443,11 @@ public class CustomerAccountSwing extends JFrame {
     
     private JPanel createFooterPanel() {
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        footer.setBackground(new Color(34, 139, 34));
+        footer.setOpaque(false);
         footer.setBorder(new EmptyBorder(10, 20, 10, 20));
         
         JLabel footerLabel = new JLabel("© 2025 Coffee Shop Management System - Customer Account");
-        footerLabel.setForeground(Color.WHITE);
+        footerLabel.setForeground(new Color(245, 235, 224, 220));
         footerLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         
         footer.add(footerLabel);
@@ -482,6 +575,7 @@ public class CustomerAccountSwing extends JFrame {
         
         JPanel updatePanel = new JPanel(new GridBagLayout());
         updatePanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        updatePanel.setBackground(panelBg);
         
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
@@ -568,5 +662,16 @@ public class CustomerAccountSwing extends JFrame {
             JOptionPane.showMessageDialog(this, "Error loading order details: " + e.getMessage(), 
                 "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private JButton createStyledButton(String text, Color color) {
+        JButton btn = new JButton(text);
+        btn.setBackground(color);
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setBorder(new EmptyBorder(8, 12, 8, 12));
+        btn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        return btn;
     }
 }

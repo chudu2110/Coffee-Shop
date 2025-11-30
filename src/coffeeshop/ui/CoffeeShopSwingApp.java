@@ -171,10 +171,13 @@ public class CoffeeShopSwingApp extends JFrame {
         center.add(right);
 
 		JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 6));
+		JButton backBtn = createStyledButton("Về Menu chính", new Color(121, 85, 72));
+		backBtn.addActionListener(e -> { new MainMenuSwing().setVisible(true); this.dispose(); });
 		JButton bottomCheckout = createStyledButton("Thanh toán", new Color(85, 130, 180));
 		bottomCheckout.addActionListener(e -> onCheckout());
 		JButton bottomHistory = createStyledButton("Lịch sử đơn", new Color(140, 120, 160));
 		bottomHistory.addActionListener(e -> showOrderHistory());
+		bottomBar.add(backBtn);
 		bottomBar.add(bottomHistory);
 		bottomBar.add(bottomCheckout);
 		root.add(bottomBar, BorderLayout.SOUTH);

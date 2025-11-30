@@ -285,8 +285,10 @@ public class MainMenuSwing extends JFrame {
     private void openManagementMode() {
         SwingUtilities.invokeLater(() -> {
             ManagementSwingApp managementApp = new ManagementSwingApp();
-            managementApp.setVisible(true);
-            this.dispose();
+            if (managementApp.isAuthenticated()) {
+                managementApp.setVisible(true);
+                this.dispose();
+            }
         });
     }
     

@@ -6,12 +6,16 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.util.List;
-
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -37,7 +41,13 @@ public class ManagementSwingApp extends JFrame {
     private OrderDAO orderDAO;
     private PaymentDAO paymentDAO;
     private TableDAO tableDAO;
+    private final Color coffeeDark = new Color(88, 57, 39);
+    private final Color coffeeLight = new Color(222, 206, 170);
+    private final Color coffeeText = new Color(245, 235, 224);
+    private final Color panelBg = new Color(255, 253, 250);
     
+    private boolean authenticated = false;
+
     public ManagementSwingApp() {
         super("Coffee Shop Management System - Admin Panel");
         initializeDAOs();
@@ -53,20 +63,32 @@ public class ManagementSwingApp extends JFrame {
     }
     
     private void setupUI() {
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setSize(1000, 700);
         setLocationRelativeTo(null);
         setResizable(true);
         
         // Authentication
         if (!authenticate()) {
-            JOptionPane.showMessageDialog(this, "Access denied!", "Authentication Failed", JOptionPane.ERROR_MESSAGE);
-            System.exit(0);
+            authenticated = false;
+            dispose();
+            return;
         }
+        authenticated = true;
         
         // Main panel
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(new Color(245, 245, 245));
+        JPanel mainPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                GradientPaint gp = new GradientPaint(0, 0, coffeeDark, 0, getHeight(), coffeeLight);
+                g2d.setPaint(gp);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                g2d.dispose();
+            }
+        };
         
         // Header
         JPanel headerPanel = createHeaderPanel();
@@ -82,53 +104,125 @@ public class ManagementSwingApp extends JFrame {
         
         setContentPane(mainPanel);
     }
+
+    public boolean isAuthenticated() {
+        return authenticated;
+    }
     
     private boolean authenticate() {
+        final boolean[] ok = {false};
+        JDialog dialog = new JDialog(this, "Authentication", true);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setSize(520, 260);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
         JPanel authPanel = new JPanel(new GridBagLayout());
         authPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
-        
+        authPanel.setBackground(new Color(255, 253, 250));
+
         JLabel titleLabel = new JLabel("ADMIN AUTHENTICATION");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
+        titleLabel.setForeground(new Color(85, 45, 25));
+
         JLabel passwordLabel = new JLabel("Enter Management Password:");
-        JPasswordField passwordField = new JPasswordField(20);
-        
+        JPasswordField passwordField = new JPasswordField(24);
+        passwordField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        passwordField.setPreferredSize(new java.awt.Dimension(280, 30));
+
+        JLabel errorLabel = new JLabel(" ");
+        errorLabel.setForeground(new Color(186, 50, 50));
+        errorLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JButton okBtn = createStaticCoffeeButton("OK", new Color(93, 64, 55));
+        JButton cancelBtn = createStaticCoffeeButton("Cancel", new Color(121, 85, 72));
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
-        
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         authPanel.add(titleLabel, gbc);
-        
-        gbc.gridwidth = 1; gbc.gridy = 1;
+
+        gbc.gridwidth = 1; gbc.gridy = 1; gbc.gridx = 0;
         authPanel.add(passwordLabel, gbc);
-        
         gbc.gridx = 1;
         authPanel.add(passwordField, gbc);
-        
-        int result = JOptionPane.showConfirmDialog(this, authPanel, "Authentication", 
-            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        
-        if (result == JOptionPane.OK_OPTION) {
+
+        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
+        authPanel.add(errorLabel, gbc);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 24, 0));
+        buttons.setOpaque(false);
+        buttons.add(okBtn);
+        buttons.add(cancelBtn);
+
+        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
+        authPanel.add(buttons, gbc);
+
+        okBtn.addActionListener(e -> {
             String password = new String(passwordField.getPassword());
-            return password.equals("admin123");
-        }
-        
-        return false;
+            if (password.equals("admin123")) {
+                ok[0] = true;
+                dialog.dispose();
+            } else {
+                errorLabel.setText("Access denied!");
+            }
+        });
+
+        cancelBtn.addActionListener(e -> { ok[0] = false; dialog.dispose(); });
+
+        dialog.setContentPane(authPanel);
+        dialog.getRootPane().setDefaultButton(okBtn);
+        dialog.addWindowListener(new java.awt.event.WindowAdapter(){
+            @Override public void windowOpened(java.awt.event.WindowEvent e){
+                passwordField.requestFocusInWindow();
+            }
+        });
+        dialog.setVisible(true);
+        return ok[0];
+    }
+
+    private JButton createStaticCoffeeButton(String text, Color color) {
+        JButton btn = new JButton(text);
+        btn.setForeground(Color.WHITE);
+        btn.setBackground(color);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(true);
+        btn.setOpaque(true);
+        btn.setBorder(new EmptyBorder(8, 16, 8, 16));
+        btn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        return btn;
     }
     
     private JPanel createHeaderPanel() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(new Color(70, 130, 180));
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                GradientPaint gp = new GradientPaint(0, 0, coffeeDark, 0, getHeight(), coffeeLight);
+                g2d.setPaint(gp);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                g2d.dispose();
+            }
+        };
+        header.setOpaque(false);
         header.setBorder(new EmptyBorder(15, 20, 15, 20));
         
         JLabel titleLabel = new JLabel("MANAGEMENT DASHBOARD");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setForeground(coffeeText);
         
         JLabel subtitleLabel = new JLabel("Quản lý hệ thống quán cà phê");
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        subtitleLabel.setForeground(new Color(255, 255, 255, 200));
+        subtitleLabel.setForeground(new Color(245, 235, 224, 200));
         
         JPanel titlePanel = new JPanel(new BorderLayout());
         titlePanel.setOpaque(false);
@@ -138,11 +232,7 @@ public class ManagementSwingApp extends JFrame {
         header.add(titlePanel, BorderLayout.WEST);
         
         // Back button
-        JButton backBtn = new JButton("← Back to Main Menu");
-        backBtn.setBackground(new Color(220, 20, 60));
-        backBtn.setForeground(Color.WHITE);
-        backBtn.setBorderPainted(false);
-        backBtn.setFocusPainted(false);
+        JButton backBtn = createStaticCoffeeButton("← Back to Main Menu", new Color(93, 64, 55));
         backBtn.addActionListener(e -> {
             new MainMenuSwing().setVisible(true);
             dispose();
@@ -156,6 +246,12 @@ public class ManagementSwingApp extends JFrame {
     private JTabbedPane createTabbedPane() {
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        javax.swing.UIManager.put("TabbedPane.contentAreaColor", panelBg);
+        javax.swing.UIManager.put("TabbedPane.background", panelBg);
+        javax.swing.UIManager.put("TabbedPane.darkShadow", panelBg);
+        javax.swing.UIManager.put("TabbedPane.light", panelBg);
+        javax.swing.UIManager.put("TabbedPane.highlight", panelBg);
+        tabbedPane.setOpaque(false);
         
         // Menu Management Tab
         tabbedPane.addTab("Menu Management", createMenuManagementPanel());
@@ -181,6 +277,7 @@ public class ManagementSwingApp extends JFrame {
     private JPanel createMenuManagementPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         // Menu items table
         String[] columns = {"ID", "Name", "Description", "Price", "Category", "Type", "Available"};
@@ -200,15 +297,17 @@ public class ManagementSwingApp extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(menuTable);
         scrollPane.setBorder(new TitledBorder("Menu Items"));
+        scrollPane.getViewport().setBackground(panelBg);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStaticCoffeeButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> loadMenuItems(model));
         
-        JButton addBtn = new JButton("Add Item");
+        JButton addBtn = createStaticCoffeeButton("Add Item", new Color(186, 140, 99));
         addBtn.addActionListener(e -> showAddMenuItemDialog());
         
         buttonPanel.add(refreshBtn);
@@ -222,6 +321,7 @@ public class ManagementSwingApp extends JFrame {
     private JPanel createOrdersPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         String[] columns = {"Order ID", "Customer", "Service Type", "Table", "Total", "Status", "Date"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
@@ -238,12 +338,14 @@ public class ManagementSwingApp extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(ordersTable);
         scrollPane.setBorder(new TitledBorder("All Orders"));
+        scrollPane.getViewport().setBackground(panelBg);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStaticCoffeeButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> loadOrders(model));
         
         buttonPanel.add(refreshBtn);
@@ -255,6 +357,7 @@ public class ManagementSwingApp extends JFrame {
     private JPanel createPaymentsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         String[] columns = {"Payment ID", "Order ID", "Method", "Amount", "Status", "Date", "Customer"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
@@ -271,12 +374,14 @@ public class ManagementSwingApp extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(paymentsTable);
         scrollPane.setBorder(new TitledBorder("All Payments (Invoices)"));
+        scrollPane.getViewport().setBackground(panelBg);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStaticCoffeeButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> loadPayments(model));
         
         buttonPanel.add(refreshBtn);
@@ -288,6 +393,7 @@ public class ManagementSwingApp extends JFrame {
     private JPanel createCustomersPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         String[] columns = {"ID", "Name", "Email", "Phone", "Loyalty Points", "Registration Date"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
@@ -304,12 +410,14 @@ public class ManagementSwingApp extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(customersTable);
         scrollPane.setBorder(new TitledBorder("Customers"));
+        scrollPane.getViewport().setBackground(panelBg);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStaticCoffeeButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> loadCustomers(model));
         
         buttonPanel.add(refreshBtn);
@@ -321,6 +429,7 @@ public class ManagementSwingApp extends JFrame {
     private JPanel createTablesPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         String[] columns = {"Table #", "Capacity", "Status", "Customer ID", "Notes"};
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
@@ -337,12 +446,14 @@ public class ManagementSwingApp extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(tablesTable);
         scrollPane.setBorder(new TitledBorder("Table Management"));
+        scrollPane.getViewport().setBackground(panelBg);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStaticCoffeeButton("Refresh", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> loadTables(model));
         
         buttonPanel.add(refreshBtn);
@@ -354,6 +465,7 @@ public class ManagementSwingApp extends JFrame {
     private JPanel createReportsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBackground(panelBg);
         
         JTextArea reportsArea = new JTextArea(20, 50);
         reportsArea.setEditable(false);
@@ -364,12 +476,14 @@ public class ManagementSwingApp extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(reportsArea);
         scrollPane.setBorder(new TitledBorder("Reports & Analytics"));
+        scrollPane.getViewport().setBackground(panelBg);
         
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton refreshBtn = new JButton("Refresh Reports");
+        buttonPanel.setOpaque(false);
+        JButton refreshBtn = createStaticCoffeeButton("Refresh Reports", new Color(121, 85, 72));
         refreshBtn.addActionListener(e -> loadReports(reportsArea));
         
         buttonPanel.add(refreshBtn);
@@ -377,14 +491,78 @@ public class ManagementSwingApp extends JFrame {
         
         return panel;
     }
+
+    private JButton createCoffeeButton(String text, Color color) {
+        JButton button = new JButton(text) {
+            private float anim = 0f;
+            private javax.swing.Timer timer;
+
+            private java.awt.Color blend(java.awt.Color c, float a) {
+                int r = (int) Math.min(255, c.getRed() * (1 - a) + 255 * a);
+                int g = (int) Math.min(255, c.getGreen() * (1 - a) + 255 * a);
+                int b = (int) Math.min(255, c.getBlue() * (1 - a) + 255 * a);
+                return new java.awt.Color(r, g, b);
+            }
+
+            @Override
+            protected void paintComponent(java.awt.Graphics g) {
+                if (timer == null) {
+                    timer = new javax.swing.Timer(16, e -> {
+                        float target = getModel().isRollover() ? 1f : 0f;
+                        float step = 0.12f;
+                        if (anim < target) anim = Math.min(target, anim + step);
+                        else anim = Math.max(target, anim - step);
+                        repaint();
+                    });
+                    timer.start();
+                }
+
+                java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int w = getWidth();
+                int h = getHeight();
+                boolean press = getModel().isPressed();
+
+                float lift = press ? anim * 0.4f : anim;
+                g2.translate(0, -2 * lift);
+                g2.scale(1 + 0.01f * lift, 1 + 0.01f * lift);
+
+                java.awt.Color fill = blend(color, anim * 0.15f);
+                g2.setColor(fill);
+                g2.fillRoundRect(0, 0, w, h, 18, 18);
+
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        button.setForeground(Color.WHITE);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        button.setBorder(new EmptyBorder(8, 12, 8, 12));
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        return button;
+    }
     
     private JPanel createFooterPanel() {
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        footer.setBackground(new Color(70, 130, 180));
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                GradientPaint gp = new GradientPaint(0, 0, coffeeDark, 0, getHeight(), coffeeLight);
+                g2d.setPaint(gp);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                g2d.dispose();
+            }
+        };
+        footer.setOpaque(false);
         footer.setBorder(new EmptyBorder(10, 20, 10, 20));
         
         JLabel footerLabel = new JLabel("© 2025 Coffee Shop Management System - Admin Panel");
-        footerLabel.setForeground(Color.WHITE);
+        footerLabel.setForeground(new Color(245, 235, 224));
         footerLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         
         footer.add(footerLabel);
