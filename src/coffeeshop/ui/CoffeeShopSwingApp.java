@@ -1,5 +1,16 @@
 package coffeeshop.ui;
 
+import coffeeshop.dao.CustomerDAO;
+import coffeeshop.dao.MenuItemDAO;
+import coffeeshop.dao.OrderDAO;
+import coffeeshop.dao.PaymentDAO;
+import coffeeshop.db.DatabaseConnection;
+import coffeeshop.model.Coffee;
+import coffeeshop.model.Customer;
+import coffeeshop.model.MenuItem;
+import coffeeshop.model.Order;
+import coffeeshop.model.OrderItem;
+import coffeeshop.model.Payment;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -9,7 +20,6 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.util.List;
-
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
@@ -43,21 +53,10 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.border.TitledBorder;
 
-import coffeeshop.dao.CustomerDAO;
-import coffeeshop.dao.MenuItemDAO;
-import coffeeshop.dao.OrderDAO;
-import coffeeshop.dao.PaymentDAO;
-import coffeeshop.db.DatabaseConnection;
-import coffeeshop.model.Coffee;
-import coffeeshop.model.Customer;
-import coffeeshop.model.MenuItem;
-import coffeeshop.model.Order;
-import coffeeshop.model.OrderItem;
-import coffeeshop.model.Payment;
-
 public class CoffeeShopSwingApp extends JFrame {
     private final MenuItemDAO menuItemDAO = new MenuItemDAO();
-    private final Order currentOrder = new Order(0, 1, Order.ServiceType.TAKEAWAY);
+    private Order currentOrder;
+    private Customer currentCustomer;
 
     private final DefaultListModel<MenuItem> menuModel = new DefaultListModel<>();
     private final JList<MenuItem> menuList = new JList<>(menuModel);
@@ -74,6 +73,7 @@ public class CoffeeShopSwingApp extends JFrame {
     public CoffeeShopSwingApp() {
         super("Coffee Shop - Nhóm 8 OOP");
         DatabaseConnection.getInstance().createTables();
+        this.currentOrder = new Order(0, 1, Order.ServiceType.TAKEAWAY);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(850, 580);
         setLocationRelativeTo(null);
@@ -181,6 +181,124 @@ public class CoffeeShopSwingApp extends JFrame {
 		bottomBar.add(bottomHistory);
 		bottomBar.add(bottomCheckout);
 		root.add(bottomBar, BorderLayout.SOUTH);
+
+        loadMenu();
+        updateOrderArea();
+    }
+
+    public CoffeeShopSwingApp(Customer customer) {
+        super("Coffee Shop - Nhóm 8 OOP");
+        DatabaseConnection.getInstance().createTables();
+        this.currentCustomer = customer;
+        int cid = (customer != null) ? customer.getCustomerId() : 1;
+        this.currentOrder = new Order(0, cid, Order.ServiceType.TAKEAWAY);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(850, 580);
+        setLocationRelativeTo(null);
+        setResizable(false);
+
+        UIManager.put("Panel.background", new Color(250, 247, 242));
+        UIManager.put("Button.font", new Font("Segoe UI", Font.PLAIN, 14));
+        UIManager.put("Label.font", new Font("Segoe UI", Font.PLAIN, 14));
+
+        JPanel root = new JPanel(new BorderLayout(12, 12));
+        root.setBorder(new EmptyBorder(12, 12, 12, 12));
+        setContentPane(root);
+        setJMenuBar(createMenuBar());
+
+        JLabel title = new JLabel("Ứng dụng quản lý quán cà phê");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setForeground(new Color(85, 45, 25));
+        root.add(title, BorderLayout.NORTH);
+
+        JPanel center = new JPanel(new GridLayout(1, 2, 12, 12));
+        root.add(center, BorderLayout.CENTER);
+
+        JPanel left = new JPanel(new BorderLayout(10, 10));
+        left.setBorder(new CompoundBorder(
+                new TitledBorder(new LineBorder(new Color(200, 180, 150), 2, true), "Danh mục món", 
+                        TitledBorder.LEADING, TitledBorder.TOP, new Font("Segoe UI", Font.BOLD, 14), new Color(85, 45, 25)),
+                new EmptyBorder(8, 8, 8, 8)
+        ));
+
+        JPanel catPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        catPanel.add(new JLabel("Danh mục:"));
+        categoryCombo.addItem("Tất cả");
+        for (String c : menuItemDAO.getAllCategories())
+            categoryCombo.addItem(c);
+
+        categoryCombo.addActionListener(e -> loadMenu());
+        catPanel.add(categoryCombo);
+        left.add(catPanel, BorderLayout.NORTH);
+
+        menuList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        menuList.setSelectionBackground(new Color(210, 170, 120));
+        menuList.setSelectionForeground(Color.WHITE);
+        menuList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof MenuItem) {
+                    MenuItem mi = (MenuItem) value;
+                    setText(mi.getName() + " — " + toVND(mi.getPrice()));
+                }
+                return c;
+            }
+        });
+        left.add(new JScrollPane(menuList), BorderLayout.CENTER);
+
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        controls.add(new JLabel("Số lượng:"));
+        controls.add(qtySpinner);
+
+        JButton addBtn = createStyledButton("Thêm vào giỏ", new Color(100, 150, 100));
+        addBtn.addActionListener(e -> onAdd());
+        JButton clearBtn = createStyledButton("Xóa giỏ", new Color(200, 100, 100));
+        clearBtn.addActionListener(e -> { currentOrder.clearOrder(); updateOrderArea(); });
+        JButton checkoutBtn = createStyledButton("Thanh toán", new Color(85, 130, 180));
+        checkoutBtn.addActionListener(e -> onCheckout());
+        JButton historyBtn = createStyledButton("Lịch sử đơn", new Color(140, 120, 160));
+        historyBtn.addActionListener(e -> showOrderHistory());
+
+        controls.add(addBtn);
+        controls.add(clearBtn);
+        controls.add(checkoutBtn);
+        controls.add(historyBtn);
+        left.add(controls, BorderLayout.SOUTH);
+
+        center.add(left);
+
+        JPanel right = new JPanel(new BorderLayout(10, 10));
+        right.setBorder(new CompoundBorder(
+                new TitledBorder(new LineBorder(new Color(200, 180, 150), 2, true), "Đơn hàng hiện tại", 
+                        TitledBorder.LEADING, TitledBorder.TOP, new Font("Segoe UI", Font.BOLD, 14), new Color(85, 45, 25)),
+                new EmptyBorder(8, 8, 8, 8)
+        ));
+
+        orderArea.setEditable(false);
+        orderArea.setFont(new Font("Consolas", Font.PLAIN, 14));
+        orderArea.setBackground(new Color(255, 253, 250));
+        right.add(new JScrollPane(orderArea), BorderLayout.CENTER);
+
+        totalLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        totalLabel.setForeground(new Color(100, 70, 40));
+        totalLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        totalLabel.setBorder(new EmptyBorder(8, 8, 8, 8));
+        right.add(totalLabel, BorderLayout.SOUTH);
+
+        center.add(right);
+
+        JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 6));
+        JButton backBtn = createStyledButton("Về Menu chính", new Color(121, 85, 72));
+        backBtn.addActionListener(e -> { new MainMenuSwing().setVisible(true); this.dispose(); });
+        JButton bottomCheckout = createStyledButton("Thanh toán", new Color(85, 130, 180));
+        bottomCheckout.addActionListener(e -> onCheckout());
+        JButton bottomHistory = createStyledButton("Lịch sử đơn", new Color(140, 120, 160));
+        bottomHistory.addActionListener(e -> showOrderHistory());
+        bottomBar.add(backBtn);
+        bottomBar.add(bottomHistory);
+        bottomBar.add(bottomCheckout);
+        root.add(bottomBar, BorderLayout.SOUTH);
 
         loadMenu();
         updateOrderArea();
@@ -422,42 +540,45 @@ public class CoffeeShopSwingApp extends JFrame {
 		return success[0];
 	}
 
-	private void showOrderHistory() {
-		JDialog dialog = new JDialog(this, "Lịch sử đơn hàng", true);
-		dialog.setLayout(new BorderLayout(10, 10));
-		((JComponent) dialog.getContentPane()).setBorder(new EmptyBorder(12, 12, 12, 12));
+    private void showOrderHistory() {
+        JDialog dialog = new JDialog(this, "Lịch sử đơn hàng", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        ((JComponent) dialog.getContentPane()).setBorder(new EmptyBorder(12, 12, 12, 12));
 
-		String[] cols = { "Mã đơn", "Khách", "Loại", "Bàn", "Tổng", "Trạng thái", "Thời gian" };
-		javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(cols, 0) {
-			@Override public boolean isCellEditable(int r, int c) { return false; }
-		};
-		JTable table = new JTable(model);
-		OrderDAO dao = new OrderDAO();
-		CustomerDAO cdao = new CustomerDAO();
-		for (Order o : dao.getAllOrders()) {
-			Customer c = cdao.getCustomerById(o.getCustomerId());
-			model.addRow(new Object[] {
-				o.getOrderId(),
-				c != null ? c.getName() : "N/A",
-				o.getServiceType(),
-				o.getTableNumber() > 0 ? o.getTableNumber() : "-",
-				toVND(o.getTotalAmount()),
-				o.getStatus(),
-				o.getOrderTime().toString()
-			});
-		}
-		dialog.add(new JScrollPane(table), BorderLayout.CENTER);
+        String[] cols = { "Mã đơn", "Khách", "Loại", "Bàn", "Tổng", "Trạng thái", "Thời gian" };
+        javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(model);
+        OrderDAO dao = new OrderDAO();
+        CustomerDAO cdao = new CustomerDAO();
+        List<Order> orders = (currentCustomer != null)
+                ? dao.getOrdersByCustomerId(currentCustomer.getCustomerId())
+                : dao.getAllOrders();
+        for (Order o : orders) {
+            Customer c = cdao.getCustomerById(o.getCustomerId());
+            model.addRow(new Object[] {
+                o.getOrderId(),
+                c != null ? c.getName() : "N/A",
+                o.getServiceType(),
+                o.getTableNumber() > 0 ? o.getTableNumber() : "-",
+                toVND(o.getTotalAmount()),
+                o.getStatus(),
+                o.getOrderTime().toString()
+            });
+        }
+        dialog.add(new JScrollPane(table), BorderLayout.CENTER);
 
-		JButton close = new JButton("Đóng");
-		JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-		south.add(close);
-		dialog.add(south, BorderLayout.SOUTH);
-		close.addActionListener(e -> dialog.dispose());
+        JButton close = new JButton("Đóng");
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        south.add(close);
+        dialog.add(south, BorderLayout.SOUTH);
+        close.addActionListener(e -> dialog.dispose());
 
-		dialog.setSize(720, 420);
-		dialog.setLocationRelativeTo(this);
-		dialog.setVisible(true);
-	}
+        dialog.setSize(720, 420);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
 
     private void updateOrderArea() {
         StringBuilder sb = new StringBuilder();

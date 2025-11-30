@@ -53,6 +53,13 @@ public class ManagementSwingApp extends JFrame {
         initializeDAOs();
         setupUI();
     }
+
+    public ManagementSwingApp(boolean skipAuthentication) {
+        super("Coffee Shop Management System - Admin Panel");
+        initializeDAOs();
+        this.authenticated = skipAuthentication;
+        setupUI();
+    }
     
     private void initializeDAOs() {
         this.menuItemDAO = new MenuItemDAO();
@@ -69,12 +76,14 @@ public class ManagementSwingApp extends JFrame {
         setResizable(true);
         
         // Authentication
-        if (!authenticate()) {
-            authenticated = false;
-            dispose();
-            return;
+        if (!authenticated) {
+            if (!authenticate()) {
+                authenticated = false;
+                dispose();
+                return;
+            }
+            authenticated = true;
         }
-        authenticated = true;
         
         // Main panel
         JPanel mainPanel = new JPanel(new BorderLayout()) {

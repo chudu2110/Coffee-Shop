@@ -674,4 +674,8 @@ public class CustomerAccountSwing extends JFrame {
         btn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
         return btn;
     }
+    
+    public static void main(String[] args) {
+        javax.swing.SwingUtilities.invokeLater(() -> new CustomerAccountSwing().setVisible(true));
+    }
 }

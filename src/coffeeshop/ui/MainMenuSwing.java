@@ -1,6 +1,8 @@
 package coffeeshop.ui;
 
+import coffeeshop.dao.CustomerDAO;
 import coffeeshop.db.DatabaseConnection;
+import coffeeshop.model.Customer;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -18,13 +20,17 @@ import java.awt.RenderingHints;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowFocusListener;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
+import javax.swing.JRadioButton;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
@@ -81,8 +87,8 @@ public class MainMenuSwing extends JFrame {
         JPanel headerPanel = createHeaderPanel();
         mainPanel.add(headerPanel, BorderLayout.NORTH);
         
-        // Center content
-        JPanel centerPanel = createCenterPanel();
+        // Center content: Đăng nhập/Đăng ký với vai trò
+        JPanel centerPanel = createAuthCenterPanel();
         mainPanel.add(centerPanel, BorderLayout.CENTER);
         
         // Footer
@@ -116,60 +122,168 @@ public class MainMenuSwing extends JFrame {
         return header;
     }
     
-    private JPanel createCenterPanel() {
+    private JPanel createAuthCenterPanel() {
         JPanel center = new JPanel(new GridBagLayout());
         center.setOpaque(false);
-        center.setBorder(new EmptyBorder(80, 40, 30, 40));
-        
+        center.setBorder(new EmptyBorder(40, 40, 40, 40));
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(15, 15, 15, 15);
+        gbc.insets = new Insets(12, 12, 12, 12);
         gbc.fill = GridBagConstraints.BOTH;
-        
-        // Shared button color (vibe coffee)
-        Color btnColorCustomer = new Color(121, 85, 72);
-        Color btnColorAccount = new Color(186, 140, 99);
-        Color btnColorMgmt = new Color(93, 64, 55);
-        Color btnColorAbout = new Color(198, 120, 63);
-        // Customer Mode Button
-        JButton customerBtn = createModeButton(
-            "KHÁCH HÀNG", 
-            "Đặt hàng, xem menu, quản lý tài khoản",
-            btnColorCustomer, 
-            e -> openCustomerMode()
-        );
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 1; gbc.weightx = 1; gbc.weighty = 1;
-        center.add(customerBtn, gbc);
-        
-        // Customer Account Management Button
-        JButton accountBtn = createModeButton(
-            "QUẢN LÝ TÀI KHOẢN", 
-            "Đăng nhập, đăng ký, xem lịch sử đơn hàng",
-            btnColorAccount, 
-            e -> openCustomerAccountMode()
-        );
-        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1; gbc.weighty = 1;
-        center.add(accountBtn, gbc);
-        
-        // Management Mode Button
-        JButton managementBtn = createModeButton(
-            "QUẢN LÝ", 
-            "Quản lý đơn hàng, báo cáo, thống kê",
-            btnColorMgmt, 
-            e -> openManagementMode()
-        );
-        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 1; gbc.weighty = 1;
-        center.add(managementBtn, gbc);
-        
-        // About Button (thay thế vị trí của "Thông tin hệ thống")
-        JButton aboutBtn = createModeButton(
-            "GIỚI THIỆU", 
-            "Thông tin về ứng dụng và nhóm phát triển",
-            btnColorAbout, 
-            e -> showAbout()
-        );
-        gbc.gridx = 1; gbc.gridy = 1; gbc.gridwidth = 1; gbc.weightx = 1; gbc.weighty = 1;
-        center.add(aboutBtn, gbc);
-        
+
+        JPanel card = new JPanel(new GridBagLayout());
+        card.setBackground(new Color(255, 253, 250));
+        card.setBorder(new javax.swing.border.CompoundBorder(
+            new javax.swing.border.LineBorder(new Color(200, 180, 150), 1, true),
+            new EmptyBorder(24, 24, 24, 24)
+        ));
+
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(8, 8, 8, 8);
+        c.anchor = GridBagConstraints.WEST;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1.0;
+
+        JLabel cardTitle = new JLabel("Xác thực và Vai trò");
+        cardTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        cardTitle.setForeground(new Color(85, 45, 25));
+        c.gridx = 0; c.gridy = 0; c.gridwidth = 2;
+        card.add(cardTitle, c);
+
+        JLabel roleLabel = new JLabel("Vai trò:");
+        roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        JRadioButton rbCustomer = new JRadioButton("Khách hàng", true);
+        JRadioButton rbAdmin = new JRadioButton("Admin");
+        rbCustomer.setOpaque(false);
+        rbAdmin.setOpaque(false);
+        ButtonGroup group = new ButtonGroup();
+        group.add(rbCustomer);
+        group.add(rbAdmin);
+
+        c.gridwidth = 1;
+        c.gridy = 1; c.gridx = 0;
+        card.add(roleLabel, c);
+        JPanel roleBtns = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        roleBtns.setOpaque(false);
+        roleBtns.add(rbCustomer);
+        roleBtns.add(rbAdmin);
+        c.gridx = 1;
+        card.add(roleBtns, c);
+
+        JLabel emailLabel = new JLabel("Email:");
+        JTextField emailField = new JTextField(22);
+        JLabel nameLabel = new JLabel("Họ tên:");
+        JTextField nameField = new JTextField(22);
+        JLabel phoneLabel = new JLabel("Số điện thoại:");
+        JTextField phoneField = new JTextField(22);
+        JLabel adminPassLabel = new JLabel("Mật khẩu quản lý:");
+        JPasswordField adminPassField = new JPasswordField(22);
+
+        c.gridy = 2; c.gridx = 0;
+        card.add(emailLabel, c);
+        c.gridx = 1;
+        card.add(emailField, c);
+        c.gridy = 3; c.gridx = 0;
+        card.add(nameLabel, c);
+        c.gridx = 1;
+        card.add(nameField, c);
+        c.gridy = 4; c.gridx = 0;
+        card.add(phoneLabel, c);
+        c.gridx = 1;
+        card.add(phoneField, c);
+        c.gridy = 5; c.gridx = 0;
+        card.add(adminPassLabel, c);
+        c.gridx = 1;
+        card.add(adminPassField, c);
+
+        JButton actionBtn = createSimpleButton("Đăng nhập", new Color(93, 64, 55));
+        JButton toggleBtn = createSimpleButton("Chuyển sang Đăng ký", new Color(186, 140, 99));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setOpaque(false);
+        actions.add(toggleBtn);
+        actions.add(actionBtn);
+        c.gridy = 6; c.gridx = 0; c.gridwidth = 2;
+        card.add(actions, c);
+
+        final boolean[] registerMode = {false};
+        Runnable updateMode = () -> {
+            boolean isAdmin = rbAdmin.isSelected();
+            boolean isRegister = registerMode[0];
+            emailLabel.setVisible(!isAdmin);
+            emailField.setVisible(!isAdmin);
+            nameLabel.setVisible(!isAdmin && isRegister);
+            nameField.setVisible(!isAdmin && isRegister);
+            phoneLabel.setVisible(!isAdmin && isRegister);
+            phoneField.setVisible(!isAdmin && isRegister);
+            adminPassLabel.setVisible(isAdmin);
+            adminPassField.setVisible(isAdmin);
+            actionBtn.setText(isAdmin ? "Vào quản lý" : (isRegister ? "Đăng ký" : "Đăng nhập"));
+            toggleBtn.setVisible(!isAdmin);
+            toggleBtn.setText(isRegister ? "Chuyển sang Đăng nhập" : "Chuyển sang Đăng ký");
+            card.revalidate();
+            card.repaint();
+        };
+        toggleBtn.addActionListener(e -> { registerMode[0] = !registerMode[0]; updateMode.run(); });
+        rbAdmin.addActionListener(e -> updateMode.run());
+        rbCustomer.addActionListener(e -> updateMode.run());
+        updateMode.run();
+
+        actionBtn.addActionListener(e -> {
+            if (rbAdmin.isSelected()) {
+                String pass = new String(adminPassField.getPassword());
+                if (pass.equals("admin123")) {
+                    SwingUtilities.invokeLater(() -> {
+                        ManagementSwingApp app = new ManagementSwingApp(true);
+                        app.setVisible(true);
+                        dispose();
+                    });
+                } else {
+                    JOptionPane.showMessageDialog(this, "Mật khẩu không đúng", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                }
+                return;
+            }
+            CustomerDAO cdao = new CustomerDAO();
+            boolean isRegister = registerMode[0];
+            if (isRegister) {
+                String name = nameField.getText().trim();
+                String email = emailField.getText().trim();
+                String phone = phoneField.getText().trim();
+                if (name.isEmpty() || email.isEmpty() || phone.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Vui lòng điền đủ thông tin", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                try {
+                    Customer newCustomer = new Customer(0, name, email, phone);
+                    int id = cdao.createCustomer(newCustomer);
+                    if (id > 0) {
+                        Customer full = cdao.getCustomerById(id);
+                        openCustomerOrder(full);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Đăng ký thất bại", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Lỗi đăng ký: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                String email = emailField.getText().trim();
+                if (email.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Vui lòng nhập email", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                try {
+                    Customer customer = cdao.getCustomerByEmail(email);
+                    if (customer != null) {
+                        openCustomerOrder(customer);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Không tìm thấy khách hàng với email này", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Lỗi đăng nhập: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 1; gbc.weighty = 1;
+        center.add(card, gbc);
         return center;
     }
     
@@ -267,28 +381,23 @@ public class MainMenuSwing extends JFrame {
         footer.setOpaque(false);
         return footer;
     }
-    
-    private void openCustomerMode() {
-        SwingUtilities.invokeLater(() -> {
-            new CoffeeShopSwingApp().setVisible(true);
-            this.dispose();
-        });
+
+    private JButton createSimpleButton(String text, Color color) {
+        JButton btn = new JButton(text);
+        btn.setBackground(color);
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setBorder(new EmptyBorder(8, 12, 8, 12));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
     }
     
-    private void openCustomerAccountMode() {
+    private void openCustomerOrder(Customer customer) {
         SwingUtilities.invokeLater(() -> {
-            new CustomerAccountSwing().setVisible(true);
-            this.dispose();
-        });
-    }
-    
-    private void openManagementMode() {
-        SwingUtilities.invokeLater(() -> {
-            ManagementSwingApp managementApp = new ManagementSwingApp();
-            if (managementApp.isAuthenticated()) {
-                managementApp.setVisible(true);
-                this.dispose();
-            }
+            CoffeeShopSwingApp app = new CoffeeShopSwingApp(customer);
+            app.setVisible(true);
+            dispose();
         });
     }
     
