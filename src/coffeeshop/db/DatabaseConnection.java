@@ -1,10 +1,18 @@
 package coffeeshop.db;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
 
 /**
  * DatabaseConnection
@@ -13,22 +21,86 @@ import java.sql.Statement;
  * Tự động tạo bảng và chèn dữ liệu mẫu nếu chưa tồn tại.
  */
 public class DatabaseConnection {
-    private static final String URL = "jdbc:mysql://localhost:3306/coffee_shop";
-    private static final String USER = "root";
-    private static final String PASSWORD = "123456";
+    private static final String MYSQL_URL = "jdbc:mysql://localhost:3306/coffee_shop";
+    private static final String MYSQL_USER = "root";
+    private static final String MYSQL_PASSWORD = "123456";
 
     private static Connection connection;
     private static DatabaseConnection instance;
+    private static String dbType;
+    private static String url;
+    private static String user;
+    private static String password;
+
+    private static void loadConfig() {
+        if (dbType != null) return;
+        dbType = "mysql";
+        url = MYSQL_URL;
+        user = MYSQL_USER;
+        password = MYSQL_PASSWORD;
+        Path propsPath = Paths.get("Library", "db.properties");
+        Properties props = new Properties();
+        if (Files.exists(propsPath)) {
+            try (var in = Files.newInputStream(propsPath)) {
+                props.load(in);
+            } catch (IOException ignore) {}
+        }
+        String typeProp = props.getProperty("db.type");
+        if (typeProp != null) {
+            dbType = typeProp.trim().toLowerCase();
+        }
+        if ("sqlite".equals(dbType)) {
+            String configuredUrl = props.getProperty("db.url");
+            if (configuredUrl != null && !configuredUrl.isBlank()) {
+                url = configuredUrl.trim();
+            } else {
+                String fileProp = props.getProperty("db.sqlite.path", "coffee_shop.db").trim();
+                Path file = Paths.get(fileProp);
+                if (!Files.exists(file)) {
+                    Path alt = Paths.get("src").resolve(fileProp);
+                    if (Files.exists(alt)) file = alt;
+                }
+                url = "jdbc:sqlite:" + file.toAbsolutePath();
+            }
+            user = null;
+            password = null;
+        } else {
+            String host = props.getProperty("db.host");
+            String name = props.getProperty("db.name");
+            String port = props.getProperty("db.port");
+            String params = props.getProperty("db.params");
+            String u = props.getProperty("db.user");
+            String p = props.getProperty("db.password");
+            String base = host != null ? host : MYSQL_URL;
+            if (base.contains("jdbc:mysql")) {
+                String sep = base.contains("?") ? "&" : "?";
+                if (params != null && !params.isBlank()) base = base + sep + params;
+            }
+            url = base;
+            user = u != null ? u : MYSQL_USER;
+            password = p != null ? p : MYSQL_PASSWORD;
+        }
+    }
 
     // ==========================
     // Kết nối tới database
     // ==========================
     public static Connection getConnection() {
         try {
+            loadConfig();
             if (connection == null || connection.isClosed()) {
-                Class.forName("com.mysql.cj.jdbc.Driver"); // Thêm dòng này
-                connection = DriverManager.getConnection(URL, USER, PASSWORD);
-                System.out.println("Connected to MySQL successfully!");
+                if ("sqlite".equals(dbType)) {
+                    Class.forName("org.sqlite.JDBC");
+                    connection = DriverManager.getConnection(url);
+                    try (Statement s = connection.createStatement()) {
+                        s.execute("PRAGMA foreign_keys = ON;");
+                    }
+                    System.out.println("Connected to SQLite successfully!");
+                } else {
+                    Class.forName("com.mysql.cj.jdbc.Driver");
+                    connection = DriverManager.getConnection(url, user, password);
+                    System.out.println("Connected to MySQL successfully!");
+                }
             }
         } catch (SQLException | ClassNotFoundException e) {
             System.err.println("Wrong connect: " + e.getMessage());
@@ -70,171 +142,179 @@ public class DatabaseConnection {
     
 
     public static void createTables() {
-    try {
-        Connection conn = getConnection(); // không đóng connection ở đây
-        if (conn == null || conn.isClosed()) {
-            conn = getConnection();
-        }
-        Statement stmt = conn.createStatement();
-
-        // menu_items (sử dụng base_price)
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS menu_items (" +
-            "  id INT AUTO_INCREMENT PRIMARY KEY," +
-            "  name VARCHAR(255) NOT NULL," +
-            "  description TEXT," +
-            "  base_price DECIMAL(10,3) NOT NULL," +
-            "  category VARCHAR(100) NOT NULL," +
-            "  item_type VARCHAR(50) NOT NULL," +
-            "  coffee_type VARCHAR(50)," +
-            "  is_available TINYINT(1) DEFAULT 1," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
-            ") ENGINE=InnoDB;"
-        );
-
-        // Deduplicate existing rows by name (keep the smallest id)
-        stmt.executeUpdate(
-            "DELETE mi1 FROM menu_items mi1 " +
-            "JOIN menu_items mi2 ON mi1.name = mi2.name AND mi1.id > mi2.id"
-        );
-
-        // Enforce unique names to avoid duplicates in future inserts
         try {
-            stmt.executeUpdate(
-                "ALTER TABLE menu_items ADD CONSTRAINT uk_menu_items_name UNIQUE (name)"
-            );
-        } catch (SQLException ignore) {
-            // Unique key may already exist; safely ignore
+            Connection conn = getConnection();
+            if (conn == null || conn.isClosed()) {
+                conn = getConnection();
+            }
+            if ("sqlite".equals(dbType)) {
+                Path schema = Paths.get("Library", "database_schema.sql");
+                if (Files.exists(schema)) {
+                    List<String> statements = new ArrayList<>();
+                    try (BufferedReader br = Files.newBufferedReader(schema)) {
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = br.readLine()) != null) {
+                            String t = line.trim();
+                            if (t.startsWith("--")) continue;
+                            sb.append(line).append('\n');
+                            if (t.endsWith(";")) {
+                                statements.add(sb.toString());
+                                sb.setLength(0);
+                            }
+                        }
+                        if (sb.length() > 0) statements.add(sb.toString());
+                    } catch (IOException ignore) {}
+                    try (Statement s = conn.createStatement()) {
+                        for (String sql : statements) {
+                            String sqlTrim = sql.trim();
+                            String upper = sqlTrim.toUpperCase();
+                            if (upper.startsWith("CREATE DATABASE") || upper.startsWith("USE ")) continue;
+                            if (!sqlTrim.isEmpty()) s.execute(sqlTrim);
+                        }
+                    }
+                }
+                System.out.println("SQLite schema ensured.");
+            } else {
+                Statement stmt = conn.createStatement();
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS menu_items (" +
+                    "  id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  name VARCHAR(255) NOT NULL," +
+                    "  description TEXT," +
+                    "  base_price DECIMAL(10,3) NOT NULL," +
+                    "  category VARCHAR(100) NOT NULL," +
+                    "  item_type VARCHAR(50) NOT NULL," +
+                    "  coffee_type VARCHAR(50)," +
+                    "  is_available TINYINT(1) DEFAULT 1," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "DELETE mi1 FROM menu_items mi1 " +
+                    "JOIN menu_items mi2 ON mi1.name = mi2.name AND mi1.id > mi2.id"
+                );
+                try {
+                    stmt.executeUpdate(
+                        "ALTER TABLE menu_items ADD CONSTRAINT uk_menu_items_name UNIQUE (name)"
+                    );
+                } catch (SQLException ignore) {}
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS customers (" +
+                    "  customer_id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  name VARCHAR(100) NOT NULL," +
+                    "  email VARCHAR(150) UNIQUE," +
+                    "  phone_number VARCHAR(20)," +
+                    "  loyalty_points DECIMAL(10,2) DEFAULT 0.00," +
+                    "  registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS tables (" +
+                    "  table_number INT PRIMARY KEY," +
+                    "  capacity INT NOT NULL," +
+                    "  status VARCHAR(20) DEFAULT 'AVAILABLE'," +
+                    "  current_customer_id INT NULL," +
+                    "  occupied_since TIMESTAMP NULL," +
+                    "  reserved_until TIMESTAMP NULL," +
+                    "  notes TEXT," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "  CONSTRAINT fk_tables_customer FOREIGN KEY (current_customer_id) REFERENCES customers(customer_id)" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS orders (" +
+                    "  order_id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  customer_id INT NOT NULL," +
+                    "  status VARCHAR(20) DEFAULT 'PENDING'," +
+                    "  service_type VARCHAR(20) NOT NULL," +
+                    "  table_number INT NULL," +
+                    "  subtotal DECIMAL(10,3) NOT NULL," +
+                    "  tax DECIMAL(10,3) NOT NULL," +
+                    "  discount DECIMAL(10,3) DEFAULT 0.00," +
+                    "  total_amount DECIMAL(10,3) NOT NULL," +
+                    "  special_instructions TEXT," +
+                    "  order_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  completion_time TIMESTAMP NULL," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)," +
+                    "  CONSTRAINT fk_orders_table FOREIGN KEY (table_number) REFERENCES tables(table_number)" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS order_items (" +
+                    "  order_item_id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  order_id INT NOT NULL," +
+                    "  menu_item_id INT NOT NULL," +
+                    "  quantity INT NOT NULL," +
+                    "  unit_price DECIMAL(10,3) NOT NULL," +
+                    "  total_price DECIMAL(10,3) NOT NULL," +
+                    "  customizations TEXT," +
+                    "  size VARCHAR(20)," +
+                    "  is_hot TINYINT(1)," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  CONSTRAINT fk_orderitems_order FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE," +
+                    "  CONSTRAINT fk_orderitems_menu FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS payments (" +
+                    "  payment_id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  order_id INT NOT NULL," +
+                    "  payment_method VARCHAR(20) NOT NULL," +
+                    "  status VARCHAR(20) DEFAULT 'PENDING'," +
+                    "  amount DECIMAL(10,3) NOT NULL," +
+                    "  amount_paid DECIMAL(10,3) DEFAULT 0.00," +
+                    "  change_given DECIMAL(10,3) DEFAULT 0.00," +
+                    "  transaction_reference VARCHAR(100)," +
+                    "  card_last_four_digits VARCHAR(4)," +
+                    "  failure_reason TEXT," +
+                    "  payment_time TIMESTAMP NULL," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "  CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders(order_id)" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS ingredients (" +
+                    "  ingredient_id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  name VARCHAR(100) NOT NULL," +
+                    "  description TEXT," +
+                    "  unit VARCHAR(20) NOT NULL," +
+                    "  current_stock DECIMAL(10,3) DEFAULT 0.000," +
+                    "  minimum_stock DECIMAL(10,3) NOT NULL," +
+                    "  maximum_stock DECIMAL(10,3) NOT NULL," +
+                    "  cost_per_unit DECIMAL(10,3) NOT NULL," +
+                    "  expiration_date DATE," +
+                    "  supplier VARCHAR(100)," +
+                    "  is_active TINYINT(1) DEFAULT 1," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS menu_item_ingredients (" +
+                    "  menu_item_id INT NOT NULL," +
+                    "  ingredient_id INT NOT NULL," +
+                    "  quantity_required DECIMAL(10,3) NOT NULL," +
+                    "  PRIMARY KEY (menu_item_id, ingredient_id)," +
+                    "  CONSTRAINT fk_mii_menu FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE," +
+                    "  CONSTRAINT fk_mii_ing FOREIGN KEY (ingredient_id) REFERENCES ingredients(ingredient_id) ON DELETE CASCADE" +
+                    ") ENGINE=InnoDB;"
+                );
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 1;");
+                stmt.close();
+                System.out.println("Tables created or verified successfully.");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error creating tables: " + e.getMessage());
         }
-
-        // customers
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS customers (" +
-            "  customer_id INT AUTO_INCREMENT PRIMARY KEY," +
-            "  name VARCHAR(100) NOT NULL," +
-            "  email VARCHAR(150) UNIQUE," +
-            "  phone_number VARCHAR(20)," +
-            "  loyalty_points DECIMAL(10,2) DEFAULT 0.00," +
-            "  registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
-            ") ENGINE=InnoDB;"
-        );
-
-        // tables (bàn)
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS tables (" +
-            "  table_number INT PRIMARY KEY," +
-            "  capacity INT NOT NULL," +
-            "  status VARCHAR(20) DEFAULT 'AVAILABLE'," +
-            "  current_customer_id INT NULL," +
-            "  occupied_since TIMESTAMP NULL," +
-            "  reserved_until TIMESTAMP NULL," +
-            "  notes TEXT," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-            "  CONSTRAINT fk_tables_customer FOREIGN KEY (current_customer_id) REFERENCES customers(customer_id)" +
-            ") ENGINE=InnoDB;"
-        );
-
-        // orders
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS orders (" +
-            "  order_id INT AUTO_INCREMENT PRIMARY KEY," +
-            "  customer_id INT NOT NULL," +
-            "  status VARCHAR(20) DEFAULT 'PENDING'," +
-            "  service_type VARCHAR(20) NOT NULL," +
-            "  table_number INT NULL," +
-            "  subtotal DECIMAL(10,3) NOT NULL," +
-            "  tax DECIMAL(10,3) NOT NULL," +
-            "  discount DECIMAL(10,3) DEFAULT 0.00," +
-            "  total_amount DECIMAL(10,3) NOT NULL," +
-            "  special_instructions TEXT," +
-            "  order_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  completion_time TIMESTAMP NULL," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-            "  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)," +
-            "  CONSTRAINT fk_orders_table FOREIGN KEY (table_number) REFERENCES tables(table_number)" +
-            ") ENGINE=InnoDB;"
-        );
-
-        // order_items
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS order_items (" +
-            "  order_item_id INT AUTO_INCREMENT PRIMARY KEY," +
-            "  order_id INT NOT NULL," +
-            "  menu_item_id INT NOT NULL," +
-            "  quantity INT NOT NULL," +
-            "  unit_price DECIMAL(10,3) NOT NULL," +
-            "  total_price DECIMAL(10,3) NOT NULL," +
-            "  customizations TEXT," +
-            "  size VARCHAR(20)," +
-            "  is_hot TINYINT(1)," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  CONSTRAINT fk_orderitems_order FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE," +
-            "  CONSTRAINT fk_orderitems_menu FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)" +
-            ") ENGINE=InnoDB;"
-        );
-
-        // payments
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS payments (" +
-            "  payment_id INT AUTO_INCREMENT PRIMARY KEY," +
-            "  order_id INT NOT NULL," +
-            "  payment_method VARCHAR(20) NOT NULL," +
-            "  status VARCHAR(20) DEFAULT 'PENDING'," +
-            "  amount DECIMAL(10,3) NOT NULL," +
-            "  amount_paid DECIMAL(10,3) DEFAULT 0.00," +
-            "  change_given DECIMAL(10,3) DEFAULT 0.00," +
-            "  transaction_reference VARCHAR(100)," +
-            "  card_last_four_digits VARCHAR(4)," +
-            "  failure_reason TEXT," +
-            "  payment_time TIMESTAMP NULL," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-            "  CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders(order_id)" +
-            ") ENGINE=InnoDB;"
-        );
-
-        // ingredients + menu_item_ingredients
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS ingredients (" +
-            "  ingredient_id INT AUTO_INCREMENT PRIMARY KEY," +
-            "  name VARCHAR(100) NOT NULL," +
-            "  description TEXT," +
-            "  unit VARCHAR(20) NOT NULL," +
-            "  current_stock DECIMAL(10,3) DEFAULT 0.000," +
-            "  minimum_stock DECIMAL(10,3) NOT NULL," +
-            "  maximum_stock DECIMAL(10,3) NOT NULL," +
-            "  cost_per_unit DECIMAL(10,3) NOT NULL," +
-            "  expiration_date DATE," +
-            "  supplier VARCHAR(100)," +
-            "  is_active TINYINT(1) DEFAULT 1," +
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
-            ") ENGINE=InnoDB;"
-        );
-
-        stmt.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS menu_item_ingredients (" +
-            "  menu_item_id INT NOT NULL," +
-            "  ingredient_id INT NOT NULL," +
-            "  quantity_required DECIMAL(10,3) NOT NULL," +
-            "  PRIMARY KEY (menu_item_id, ingredient_id)," +
-            "  CONSTRAINT fk_mii_menu FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE," +
-            "  CONSTRAINT fk_mii_ing FOREIGN KEY (ingredient_id) REFERENCES ingredients(ingredient_id) ON DELETE CASCADE" +
-            ") ENGINE=InnoDB;"
-        );
-
-        stmt.execute("SET FOREIGN_KEY_CHECKS = 1;");
-        stmt.close();
-        System.out.println("Tables created or verified successfully.");
-    } catch (SQLException e) {
-        System.err.println("Error creating tables: " + e.getMessage());
     }
-}
 
     public static void insertSampleData() {
     try {
